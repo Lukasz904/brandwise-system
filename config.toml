@@ -26,6 +26,11 @@ url = "https://panel.mydevil.net/"
 note = "s36 – jedyny serwer dev; s23 – do wygaszenia jako dev"
 
 [[links."Narzędzia"]]
+name = "Stary panel finansowy"
+url = "https://panel.brandwise.pl/"
+note = "do wygaszenia po imporcie"
+
+[[links."Narzędzia"]]
 name = "Fakturownia"
 url = "https://fakturownia.pl/"
 

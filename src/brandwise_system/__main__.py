@@ -2,6 +2,7 @@
   python -m brandwise_system serve                  – uruchomienie (127.0.0.1:8790, za Caddy)
   python -m brandwise_system zaproszenie <email>    – link do utworzenia klucza dostępu (30 min)
   python -m brandwise_system faktury-test           – sprawdzenie połączenia z Fakturownią (tylko odczyt)
+  python -m brandwise_system import-panel <plik.sql> [--zastap]  – import danych ze starego panelu finansowego
 """
 
 from __future__ import annotations
@@ -23,6 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     z = sub.add_parser("zaproszenie")
     z.add_argument("email")
     sub.add_parser("faktury-test")
+    imp = sub.add_parser("import-panel")
+    imp.add_argument("plik")
+    imp.add_argument("--zastap", action="store_true", help="zastąp zlecenia, klientów i koszty w nowym systemie")
     args = ap.parse_args(argv)
     cfg = load(args.config)
 
@@ -51,6 +55,26 @@ def main(argv: list[str] | None = None) -> int:
         o = fk.overview(invs, date.today())
         print(f"Faktur: {len(invs)}, nieopłaconych: {len(o['unpaid'])}, po terminie: {len(o['overdue'])}, "
               f"do zapłaty: {o['total_open']:.2f} zł, w tym po terminie: {o['total_overdue']:.2f} zł")
+        return 0
+    if args.cmd == "import-panel":
+        from pathlib import Path
+
+        from .db import DB
+        from .finance import Finance, zl
+        from .legacy_import import ImportErrorPL, check_totals, import_legacy, parse_dump
+        text = Path(args.plik).read_bytes().decode("utf-8", errors="replace")
+        try:
+            finance = Finance(DB(cfg.db_path))
+            stats = import_legacy(finance, parse_dump(text), replace=args.zastap)
+        except ImportErrorPL as e:
+            print(f"Import przerwany: {e}", file=sys.stderr)
+            return 2
+        print(f"Zaimportowano: klienci {stats['klienci']}, zlecenia {stats['zlecenia']}, koszty {stats['koszty']}")
+        for p in stats["pominiete"]:
+            print(f"  uwaga: {p}")
+        print("Kontrola (rok · zleceń · suma netto) – porównaj ze starym panelem:")
+        for y, n, t in check_totals(finance):
+            print(f"  {y} · {n} · {zl(t)}")
         return 0
     return 1
 

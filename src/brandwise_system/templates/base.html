@@ -10,13 +10,20 @@
 <script src="/static/app.js" defer></script>
 </head>
 <body>
-{% if user %}
+{% if user and not public %}
 <nav>
   <a href="/" class="brand"><img src="/static/logo.svg" alt="brandwise"></a>
   <a href="/" class="{{ 'on' if request.url.path == '/' }}">Dashboard</a>
-  <a href="/faktury" class="{{ 'on' if request.url.path.startswith('/faktury') }}">Faktury</a>
+  {% set p = request.url.path %}
+  <a href="/zlecenia" class="{{ 'on' if p.startswith('/zlecenia') }}">Zlecenia</a>
+  <a href="/finanse" class="{{ 'on' if p.startswith('/finanse') }}">Finanse</a>
+  <a href="/faktury" class="{{ 'on' if p.startswith('/faktury') }}">Faktury</a>
+  <a href="/koszty" class="{{ 'on' if p.startswith('/koszty') }}">Koszty</a>
+  <a href="/klienci" class="{{ 'on' if p.startswith('/klienci') }}">Klienci</a>
+  <a href="/raporty" class="{{ 'on' if p.startswith('/raporty') }}">Raporty</a>
   <span class="sp"></span>
-  <a href="/klucze" class="{{ 'on' if request.url.path.startswith('/klucze') }}">Klucze dostępu</a>
+  <a href="/ustawienia" class="{{ 'on' if p.startswith('/ustawienia') }}">Ustawienia</a>
+  <a href="/klucze" class="{{ 'on' if p.startswith('/klucze') }}">Klucze</a>
   <form method="post" action="/wyloguj"><button class="link">Wyloguj</button></form>
 </nav>
 {% endif %}

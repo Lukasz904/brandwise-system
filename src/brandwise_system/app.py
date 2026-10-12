@@ -14,9 +14,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
-from . import auth
+from . import auth, finance_web
 from .config import Config
 from .db import DB
+from .finance import Finance, month_label, zl
 from .modules import pln
 from .modules.fakturownia import Fakturownia, FakturowniaError
 from .modules.finanse import Finanse
@@ -26,6 +27,15 @@ HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.filters["pln"] = pln
 templates.env.filters["b64"] = bytes_to_base64url
+templates.env.filters["zl"] = zl
+templates.env.filters["month_label"] = month_label
+templates.env.filters["zlint"] = lambda g: f"{round(g / 100):,}".replace(",", "\u00a0") if g else ""
+templates.env.filters["qty"] = lambda v: (f"{v:g}".replace(".", ",") if isinstance(v, (int, float)) else v)
+templates.env.filters["fromjson"] = lambda v: __import__("json").loads(v or "[]")
+
+
+def page_response(request: Request, name: str, **ctx):
+    return templates.TemplateResponse(request, name, {"user": auth.current_user(request), **ctx})
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
@@ -36,7 +46,7 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
     "Cache-Control": "no-store",
 }
-PUBLIC_PREFIXES = ("/static/", "/logowanie", "/zaproszenie/", "/auth/logowanie", "/auth/rejestracja", "/zdrowie")
+PUBLIC_PREFIXES = ("/static/", "/r/", "/logowanie", "/zaproszenie/", "/auth/logowanie", "/auth/rejestracja", "/zdrowie")
 
 
 class Guard(BaseHTTPMiddleware):
@@ -65,14 +75,15 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     app.state.db = DB(cfg.db_path)
     app.state.fakturownia = fakturownia or Fakturownia(cfg.fakturownia_domain, cfg.fakturownia_token,
                                                        cfg.fakturownia_kinds, cfg.fakturownia_cache_seconds)
+    app.state.finance = Finance(app.state.db)
     app.state.modules = [marek or Marek(cfg.marek_summary_url, cfg.marek_host), app.state.fakturownia,
-                         Finanse(cfg.finanse_url)]
+                         Finanse(app.state.finance)]
     app.add_middleware(Guard)
     app.include_router(auth.router)
+    app.include_router(finance_web.router)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
-    def page(request: Request, name: str, **ctx):
-        return templates.TemplateResponse(request, name, {"user": auth.current_user(request), **ctx})
+    page = page_response
 
     @app.get("/zdrowie")
     async def health():
