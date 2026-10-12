@@ -14,7 +14,9 @@
   <a href="{{ K.base }}?wszystkie=1" class="{{ 'on' if f.empty }}">Wszystkie</a>
 </div>
 
-<form class="filters" method="get" action="{{ K.base }}">
+{% set nf = [f.day_from, f.day_to, f.client_id, f.payer_id, f.status, f.invoice_status, f.principal, f.q]|select|list|length %}
+<button type="button" class="ftoggle ghost" aria-expanded="false" aria-controls="filtry" data-toggle="filtry" data-label-open="Ukryj filtry">Pokaż filtry{% if nf %} ({{ nf }}){% endif %}</button>
+<form class="filters fold" id="filtry" data-fold="filtry" method="get" action="{{ K.base }}">
   <label>Od<input type="date" name="od" value="{{ f.day_from }}"></label>
   <label>Do<input type="date" name="do" value="{{ f.day_to }}"></label>
   {{ dd('klient', 'Klient', clients|map('fin_choice', f.client_id)|list) }}
@@ -33,7 +35,7 @@
   <div class="stat ok"><b>{{ totals.net|zl }}</b><span>przychód</span></div>
 </div>
 
-{% if K.kind == "zlecenie" %}<form method="post" action="/raporty" class="inline share">
+{% if K.kind == "zlecenie" %}<form method="post" action="/raporty" class="inline share fold" data-fold="filtry">
   <input type="hidden" name="filters" value='{{ f.to_query()|tojson }}'>
   <input name="title" placeholder="Tytuł raportu dla klienta, np. PGNiG – wrzesień 2026" maxlength="120">
   <label>ważny do<input type="date" name="expires"></label>

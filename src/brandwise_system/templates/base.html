@@ -20,6 +20,8 @@
 {% if user and not public %}
 <nav>
   <a href="/" class="brand"><img src="/static/logo.svg" alt="brandwise"></a>
+  <button type="button" class="burger" aria-label="Menu" aria-expanded="false" aria-controls="menu" data-menu><span></span></button>
+  <div class="menu" id="menu">
   <a href="/" class="{{ 'on' if request.url.path == '/' }}">Dashboard</a>
   {% set p = request.url.path %}
   <a href="/zlecenia" class="{{ 'on' if p.startswith('/zlecenia') }}">Zlecenia</a>
@@ -34,6 +36,7 @@
   <a href="/ustawienia" class="{{ 'on' if p.startswith('/ustawienia') }}">Ustawienia</a>
   <a href="/klucze" class="{{ 'on' if p.startswith('/klucze') }}">Klucze</a>
   <form method="post" action="/wyloguj"><button class="link">Wyloguj</button></form>
+  </div>
 </nav>
 {% endif %}
 <main>{% block content %}{% endblock %}</main>
