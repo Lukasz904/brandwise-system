@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>{% block title %}Brandwise{% endblock %} · Brandwise</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="{{ asset('app.css') }}">
 <link rel="icon" href="/static/icon-192.png">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
@@ -14,13 +14,14 @@
 <meta name="apple-mobile-web-app-title" content="Brandwise">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#ffffff">
-<script src="/static/app.js" defer></script>
+<script src="{{ asset('app.js') }}" defer></script>
 </head>
 <body>
 {% if user and not public %}
 <nav>
   <a href="/" class="brand"><img src="/static/logo.svg" alt="brandwise"></a>
-  <button type="button" class="burger" aria-label="Menu" aria-expanded="false" aria-controls="menu" data-menu><span></span></button>
+  <input type="checkbox" id="menu-t" class="menu-t" aria-label="Menu" data-menu>
+  <label for="menu-t" class="burger" aria-hidden="true"><span></span></label>
   <div class="menu" id="menu">
   <a href="/" class="{{ 'on' if request.url.path == '/' }}">Dashboard</a>
   {% set p = request.url.path %}
