@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Raporty{% endblock %}
+{% block content %}
+<header class="top"><h1>Raporty dla klientów</h1></header>
+{% if new %}<p class="ok">Link gotowy: <code>{{ origin }}/r/{{ new }}</code></p>{% endif %}
+{% if msg %}<p class="ok">Link wyłączony.</p>{% endif %}
+<p class="hint">Raport tworzysz z listy zleceń („Udostępnij jako link”) – zapisuje aktualne filtry. Klient widzi zlecenia bez kosztów i statusów fakturowania.</p>
+<table><thead><tr><th>Tytuł</th><th>Filtry</th><th>Utworzony</th><th>Ważny do</th><th></th></tr></thead><tbody>
+{% for x in rows %}
+<tr><td><a href="/r/{{ x.r.token }}" target="_blank" rel="noopener">{{ x.r.title or 'bez tytułu' }}</a><small>{{ origin }}/r/{{ x.r.token }}</small></td>
+<td><small>{% if x.f.day_from or x.f.day_to %}{{ x.f.day_from }} – {{ x.f.day_to }}{% endif %}
+{% for c in x.f.client_id %} {{ names.get(c, '?') }}{% endfor %}{% if x.f.hashtag %} nr {{ x.f.hashtag }}{% endif %}{% if x.f.principal %} {{ x.f.principal }}{% endif %}</small></td>
+<td>{{ x.r.created_at[:10] }}</td><td>{{ x.r.expires_at or 'bezterminowo' }}</td>
+<td class="act"><form method="post" action="/raporty/{{ x.r.token }}/wylacz" data-confirm="Wyłączyć ten link? Klient straci dostęp."><button class="small ghost">Wyłącz</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="hint">Brak aktywnych linków.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

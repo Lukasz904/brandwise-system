@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Faktury{% endblock %}
 {% macro inv_table(items, overdue=False) %}
-<table><thead><tr><th>Numer</th><th>Nabywca</th><th>Termin</th><th class="num">Do zapłaty</th><th></th></tr></thead><tbody>
+<table class="cards"><thead><tr><th>Numer</th><th>Nabywca</th><th>Termin</th><th class="num">Do zapłaty</th><th></th></tr></thead><tbody>
 {% for i in items %}
 <tr class="{{ 'alert' if overdue }}">
   <td><a href="{{ fk.invoice_url(i) }}" target="_blank" rel="noopener">{{ i.number }}</a></td>

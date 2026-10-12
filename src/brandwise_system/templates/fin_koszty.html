@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Koszty{% endblock %}
+{% block content %}
+<header class="top"><h1>Koszty stałe · {{ label }}</h1>
+<form method="get" action="/koszty" class="inline"><input type="month" name="m" value="{{ month }}"><button class="small ghost">Pokaż</button></form></header>
+{% if msg %}<p class="ok">Zapisano.</p>{% endif %}
+<div class="stats wide"><div class="stat"><b>{{ total|zl }}</b><span>razem w miesiącu, netto</span></div></div>
+<table><thead><tr><th>Nazwa</th><th class="num">Kwota netto</th><th></th></tr></thead><tbody>
+{% for r in rows %}
+<tr><td colspan="2"><form method="post" action="/koszty/{{ r.id }}" class="inline costedit"><input type="hidden" name="month" value="{{ month }}"><input name="name" value="{{ r.name }}"><input name="value" inputmode="decimal" value="{{ '%.2f'|format(r.value/100) }}"><button class="small ghost">Zapisz</button></form></td>
+<td class="act"><form method="post" action="/koszty/{{ r.id }}/usun" data-confirm="Usunąć koszt „{{ r.name }}”?"><input type="hidden" name="month" value="{{ month }}"><button class="small ghost">Usuń</button></form></td></tr>
+{% else %}<tr><td colspan="3" class="hint">Brak kosztów w tym miesiącu.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Dodaj koszt</h2>
+<form method="post" action="/koszty" class="inline"><input type="hidden" name="month" value="{{ month }}"><input name="name" placeholder="Nazwa" required><input name="value" inputmode="decimal" placeholder="0,00" required><button>Dodaj</button></form>
+{% if not rows %}
+<form method="post" action="/koszty/kopiuj" class="inline"><input type="hidden" name="src" value="{{ prev }}"><input type="hidden" name="dst" value="{{ month }}"><button class="ghost">Skopiuj koszty z {{ prev|month_label }}</button></form>
+{% endif %}
+{% endblock %}

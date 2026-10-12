@@ -90,5 +90,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (r) r.addEventListener("click", () => register(r.dataset.invite || ""));
   document.querySelectorAll("form[data-confirm]").forEach((f) =>
     f.addEventListener("submit", (ev) => { if (!confirm(f.dataset.confirm)) ev.preventDefault(); }));
+  const all = document.querySelector("[data-check-all]");
+  if (all) all.addEventListener("change", () =>
+    document.querySelectorAll('#bulk input[name="id"]').forEach((c) => (c.checked = all.checked)));
+  const add = document.querySelector("[data-add-cost]");
+  if (add) add.addEventListener("click", () => {
+    const box = document.querySelector("[data-costs]");
+    const row = box.lastElementChild.cloneNode(true);
+    row.querySelectorAll("input").forEach((i) => (i.value = ""));
+    box.appendChild(row);
+  });
   if (!window.PublicKeyCredential && (l || r)) show("Ta przeglądarka nie obsługuje kluczy dostępu.");
 });

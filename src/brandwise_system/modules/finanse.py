@@ -1,21 +1,37 @@
-"""Panel finansowy zleceń – do czasu migracji tylko link do obecnego panelu (panel.brandwise.pl na mydevil).
-
-Po przeniesieniu kodu od Kuby ten moduł dostanie własne widoki i podsumowanie (zlecenia bez faktury,
-suma netto do zafakturowania) oraz wspólny przepływ z Fakturownią: zlecenie → faktura → płatność.
-"""
+"""Kafelek panelu finansowego: bieżący miesiąc i zlecenia do zafakturowania."""
 
 from __future__ import annotations
 
+import asyncio
+from datetime import date
+
+from ..finance import Filters, Finance, zl
 from . import Module, Row, Tile
 
 
 class Finanse(Module):
     key = "finanse"
-    title = "Panel finansowy"
+    title = "Finanse"
 
-    def __init__(self, url: str):
-        self.url = url
+    def __init__(self, finance: Finance):
+        self.finance = finance
 
     async def summary(self) -> Tile:
-        return Tile(key=self.key, title=self.title, href=self.url, href_label="Obecny panel",
-                    rows=[Row("Podsumowanie pojawi się po migracji panelu na ten serwer.")])
+        return await asyncio.to_thread(self._summary)
+
+    def _summary(self) -> Tile:
+        month = date.today().strftime("%Y-%m")
+        s = self.finance.month_summary(month)
+        todo = self.finance.totals(Filters(invoice_status=("Brak",)))
+        t = Tile(key=self.key, title=f"Finanse · {s['label']}", href="/finanse", href_label="Podsumowanie")
+        t.stats = [
+            Row("przychód", zl(s["revenue"]), hint="netto, po kosztach zleceń"),
+            Row("dochód", zl(s["profit"]), hint="po kosztach stałych", tone="ok" if s["profit"] > 0 else "alert"),
+            Row("do zafakturowania", zl(todo["total"]), hint=f"{todo['n']} zleceń, wszystkie miesiące",
+                tone="warn" if todo["n"] else ""),
+            Row("zleceń w miesiącu", str(s["orders"])),
+        ]
+        top = self.finance.by_client(month)[:5]
+        t.rows_title = "Klienci w tym miesiącu" if top else ""
+        t.rows = [Row(name, zl(v), href="/finanse") for name, v in top]
+        return t

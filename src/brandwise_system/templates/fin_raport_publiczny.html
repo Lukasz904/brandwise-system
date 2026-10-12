@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}{{ r.title or 'Podsumowanie zleceń' }}{% endblock %}
+{% block content %}
+<header class="top report"><div><img src="/static/logo.svg" alt="brandwise" class="logo"><h1>{{ r.title or 'Podsumowanie zleceń' }}</h1>
+{% if f.day_from or f.day_to %}<p class="hint">Okres: {{ f.day_from or '…' }} – {{ f.day_to or 'dziś' }}</p>{% endif %}</div>
+<a class="btn" href="/r/{{ token }}/xlsx">Pobierz XLSX</a></header>
+<table><thead><tr><th>Data</th><th>Nr</th><th>Tytuł</th><th>Zleceniodawca</th><th>Status</th><th class="num">Wartość netto</th></tr></thead><tbody>
+{% for o in orders %}<tr><td>{{ o.day }}</td><td>{{ o.hashtag }}</td><td>{{ o.title }}</td><td>{{ o.principal }}</td><td>{{ o.status }}</td><td class="num">{{ o.total|zl }}{% if o.qty != 1 %}<small>{{ o.qty|qty }} × {{ o.price|zl }}</small>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="hint">Brak zleceń.</td></tr>{% endfor %}
+</tbody><tfoot><tr><td colspan="5"><b>Razem netto ({{ totals.n }})</b></td><td class="num"><b>{{ totals.total|zl }}</b></td></tr></tfoot></table>
+<p class="hint">Brandwise Sp. z o.o.</p>
+{% endblock %}

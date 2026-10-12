@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Finanse{% endblock %}
+{% block content %}
+<header class="top"><h1>Finanse · {{ cur.label }}</h1>
+<form method="get" action="/finanse" class="inline"><input type="month" name="m" value="{{ month }}"><button class="small ghost">Pokaż</button></form></header>
+<div class="stats wide four">
+  <div class="stat"><b>{{ cur.sales|zl }}</b><span>sprzedaż netto · {{ cur.orders }} zleceń</span></div>
+  <div class="stat"><b>{{ cur.revenue|zl }}</b><span>przychód (po kosztach zleceń)</span></div>
+  <div class="stat"><b>{{ cur.fixed_costs|zl }}</b><span>koszty stałe</span></div>
+  <div class="stat {{ 'ok' if cur.profit > 0 else 'alert' }}"><b>{{ cur.profit|zl }}</b><span>dochód</span></div>
+</div>
+<section class="tiles two">
+  <article class="tile"><header><h2>Zamknięcie: {{ prev.label }}</h2><a href="/zlecenia?od={{ prev_m }}-01&do={{ prev_m }}-31">zlecenia →</a></header>
+    <div class="stats"><div class="stat {{ 'ok' if prev.invoiced_pct_amount >= 100 else 'warn' }}"><b>{{ prev.invoiced_pct_amount }}%</b><span>zafakturowane kwotowo</span></div>
+    <div class="stat"><b>{{ prev.invoiced_pct_count }}%</b><span>zafakturowane zadaniowo</span></div></div>
+    {% if prev.to_invoice_count %}<p class="hint">Do zafakturowania: {{ prev.to_invoice_count }} zleceń, {{ prev.to_invoice_total|zl }}.</p>{% endif %}
+  </article>
+  <article class="tile"><header><h2>Bieżący miesiąc</h2><a href="/zlecenia?od={{ month }}-01&do={{ month }}-31">zlecenia →</a></header>
+    <div class="stats"><div class="stat"><b>{{ cur.invoiced_pct_amount }}%</b><span>zafakturowane kwotowo</span></div>
+    <div class="stat"><b>{{ cur.invoiced_pct_count }}%</b><span>zafakturowane zadaniowo</span></div></div>
+  </article>
+</section>
+<h2>Przychód wg klientów · {{ cur.label }}</h2>
+<table><tbody>{% for name, v in by_client %}<tr><td>{{ name }}</td><td class="num">{{ v|zl }}</td></tr>{% else %}<tr><td class="hint">Brak zleceń.</td></tr>{% endfor %}</tbody></table>
+<h2>Historia</h2>
+<table><thead><tr><th>Miesiąc</th><th class="num">Przychód</th><th class="num">Koszty stałe</th><th class="num">Dochód</th></tr></thead><tbody>
+{% for h in history %}<tr><td><a href="/finanse?m={{ h.month }}">{{ h.label }}</a></td><td class="num">{{ h.revenue|zl }}</td><td class="num">{{ h.fixed_costs|zl }}</td><td class="num {{ 'neg' if h.profit < 0 }}">{{ h.profit|zl }}</td></tr>{% endfor %}
+</tbody></table>
+<h2>Przychód w latach</h2>
+<div class="scroll"><table class="years"><thead><tr><th>Rok</th>{% for m in ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'] %}<th class="num">{{ m }}</th>{% endfor %}<th class="num">Razem</th></tr></thead><tbody>
+{% for y, vals in years.items() %}<tr><td>{{ y }}</td>{% for v in vals %}<td class="num">{{ v|zlint }}</td>{% endfor %}<td class="num"><b>{{ vals|sum|zl }}</b></td></tr>{% endfor %}
+</tbody></table></div>
+<p class="hint">Kwoty w tabeli lat w pełnych złotych netto.</p>
+{% endblock %}

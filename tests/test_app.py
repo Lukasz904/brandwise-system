@@ -48,7 +48,7 @@ def test_dashboard_tiles_and_failure_isolated(make_client):
     assert "Brak danych: brak połączenia" in html            # Marek padł, reszta działa
     assert "Klient 1" in html and "5 dni po terminie" in html
     assert "2 460,00 zł" in html                              # suma nieopłaconych
-    assert "Podsumowanie pojawi się po migracji" in html
+    assert "Finanse ·" in html and "do zafakturowania" in html
     assert 'href="https://brandwise.pl/"' in html
     assert r.headers["content-security-policy"].startswith("default-src 'none'")
 

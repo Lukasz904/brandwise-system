@@ -40,10 +40,30 @@ cd /opt/brandwise-system && sudo -u brandwise .venv/bin/python -m brandwise_syst
 ```
 Otwórz wypisany link w Safari na Macu → „Utwórz klucz” → Touch ID. iCloud przeniesie klucz na iPhone'a.
 
+## Przeniesienie danych ze starego panelu finansowego
+
+Dane idą z serwera na serwer – nie przez czat. Najnowszy zrzut robi się sam w nocy 1–3 dnia miesiąca;
+na moment przełączenia warto zrobić świeży.
+
+1. W menedżerze plików na s23 (https://panel23.mydevil.net/file_manager/) wejdź w
+   `domains/panel.brandwise.pl/public_html/public/db_backup/backups`, zaznacz najnowszy plik `.sql` → **Ściągnij**.
+2. Na Macu, w Terminalu (podmień nazwę pliku):
+   ```bash
+   scp ~/Downloads/db_backup-02-10-2026_11-00-00.sql ubuntu@149.56.103.99:/tmp/panel.sql
+   ```
+3. Na serwerze (`ssh ubuntu@149.56.103.99`):
+   ```bash
+   sudo install -o brandwise -g brandwise -m 600 /tmp/panel.sql /opt/brandwise-system/data/panel.sql && rm /tmp/panel.sql && cd /opt/brandwise-system && sudo -u brandwise .venv/bin/python -m brandwise_system import-panel data/panel.sql && sudo -u brandwise rm data/panel.sql
+   ```
+   Na końcu wypisze kontrolę: liczbę zleceń i sumę netto w każdym roku – porównaj ze starym panelem.
+   Ponowny import (np. świeższego zrzutu) – dopisz `--zastap`.
+
 ## Aktualizacje
 Timer `brandwise-system-update` co 5 minut pobiera `main`, uruchamia testy i dopiero wtedy restartuje usługę.
 
 ## Moduły
 - **Marek** – lokalne `http://127.0.0.1:8780/_summary` z brandwise-agent.
 - **Faktury** – Fakturownia API: VAT, zaliczkowe, końcowe (`kinds` w `config.toml`), bufor 5 min.
-- **Panel finansowy** – na razie link do obecnego panelu; podsumowanie po migracji.
+- **Zlecenia / Finanse / Koszty / Klienci** – panel finansowy przepisany ze starego panelu (Laravel na s23).
+  Konta użytkowników nie są przenoszone; nazwa accounta zostaje w starych zleceniach jako opis.
+- **Raporty** – linki dla klientów z losowym tokenem (`/r/…`), z datą ważności i wyłączaniem; XLSX.

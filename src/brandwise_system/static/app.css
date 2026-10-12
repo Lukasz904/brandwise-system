@@ -69,14 +69,57 @@ code{background:var(--bg);padding:1px 6px;border-radius:6px}
 @media (max-width:640px){
   nav{gap:14px;padding:10px 16px}
   .stats{grid-template-columns:1fr 1fr}
-  table,tbody,tr,td{display:block}
-  thead{display:none}
-  tbody tr{border-bottom:1px solid var(--line);padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 12px}
-  tbody tr:last-child{border-bottom:0}
-  td{border:0;padding:0}
-  td:nth-child(1){grid-column:1}td:nth-child(2){grid-column:1;grid-row:2}td:nth-child(3){grid-column:1;grid-row:3}
-  td.num{grid-column:2;grid-row:1/3;text-align:right}
-  td.act{grid-column:2;grid-row:3;width:auto}
-  tr.alert td:first-child{box-shadow:none}tr.alert{box-shadow:inset 4px 0 var(--accent)}
+  table.cards,table.cards tbody,table.cards tr,table.cards td{display:block}
+  table.cards thead{display:none}
+  table.cards tbody tr{border-bottom:1px solid var(--line);padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 12px}
+  table.cards tbody tr:last-child{border-bottom:0}
+  table.cards td{border:0;padding:0}
+  table.cards td:nth-child(1){grid-column:1}table.cards td:nth-child(2){grid-column:1;grid-row:2}table.cards td:nth-child(3){grid-column:1;grid-row:3}
+  table.cards td.num{grid-column:2;grid-row:1/3;text-align:right}
+  table.cards td.act{grid-column:2;grid-row:3;width:auto}
+  table.cards tr.alert td:first-child{box-shadow:none}table.cards tr.alert{box-shadow:inset 4px 0 var(--accent)}
+  table:not(.cards){display:block;overflow-x:auto}
+  .filters{grid-template-columns:1fr 1fr}
   .addkey{flex-direction:column}
+}
+/* ---------- panel finansowy ---------- */
+.btn{display:inline-block;background:var(--accent);color:#fff;border-radius:30px;padding:9px 20px;font-weight:600;text-decoration:none}
+.btn:hover{background:var(--accent-d)}
+select,textarea{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;width:100%;color:var(--ink)}
+select[multiple]{padding:4px}
+textarea{resize:vertical}
+label{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--mute);font-weight:600}
+label.check{flex-direction:row;align-items:center;gap:8px}label.check input{width:auto}
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;background:var(--card);
+border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;align-items:end}
+.filters .actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}
+.stats.four{grid-template-columns:repeat(4,1fr);max-width:none}
+.stat.warn{background:#fdf0e1}.stat.warn b{color:var(--warn)}
+.stats.wide .stat.ok{background:var(--card)}
+.inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.inline input{width:auto;flex:1;min-width:140px}.inline label{flex-direction:row;align-items:center;gap:6px}
+.inline label input{flex:none}
+td .inline{margin:0}
+.share{margin-top:14px}
+.bulk{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 10px;color:var(--mute);font-size:14px}
+.bulk select,.bulk input{width:auto}
+tr.warn td:first-child{box-shadow:inset 4px 0 #e0811c}
+table.orders td{font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
+.form .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.form .grid .wide{grid-column:1/-1}
+.form .actions{display:flex;gap:16px;align-items:center;margin-top:18px}
+.costs{display:flex;flex-direction:column;gap:8px;max-width:560px}
+.costrow{display:grid;grid-template-columns:1fr 140px;gap:8px}
+.danger{margin-top:14px}
+.tiles.two{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:18px}
+.scroll{overflow-x:auto}
+table.years td,table.years th{padding:8px 8px;font-size:14px}
+td.neg{color:var(--accent-d)}
+tfoot td{border-top:1px solid var(--line);background:#fcfbfd}
+.top.report{align-items:flex-end}.top.report .logo{height:34px;display:block;margin-bottom:14px}
+.costedit input[name=value]{max-width:140px}
+@media (max-width:640px){
+  .stats.four{grid-template-columns:1fr 1fr}
+  .costrow{grid-template-columns:1fr 110px}
 }
