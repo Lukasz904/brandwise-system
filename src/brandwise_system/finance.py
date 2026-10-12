@@ -213,7 +213,8 @@ class Finance:
     MIGRATIONS = {
         "fin_clients": {"fk_client_id": "INTEGER", "payment_days": "INTEGER"},
         "fin_orders": {"fk_invoice_id": "INTEGER", "fk_invoice_number": "TEXT",
-                       "kind": "TEXT NOT NULL DEFAULT 'zlecenie'"},          # zlecenie | prospekt
+                       "kind": "TEXT NOT NULL DEFAULT 'zlecenie'",           # zlecenie | prospekt
+                       "note": "TEXT NOT NULL DEFAULT ''"},                   # notatka (np. stan rozmów)
     }
 
     def __init__(self, db):
@@ -244,6 +245,21 @@ class Finance:
     def clients(self, with_deleted: bool = False):
         sql = "SELECT * FROM fin_clients" + ("" if with_deleted else " WHERE deleted_at IS NULL") + " ORDER BY name COLLATE NOCASE"
         return self.db.q(sql)
+
+    @staticmethod
+    def _norm(name: str) -> str:
+        return "".join(ch for ch in name.lower() if ch.isalnum())
+
+    def find_client(self, name: str):
+        """Dopasowanie po nazwie bez wielkości liter, spacji i znaków (LUX MED = Luxmed)."""
+        n = self._norm(name)
+        if not n:
+            return None
+        rows = self.clients()
+        for c in rows:
+            if self._norm(c["name"]) == n:
+                return c
+        return None
 
     def client_names(self) -> dict[int, str]:
         return {r["id"]: r["name"] for r in self.clients(with_deleted=True)}
@@ -303,6 +319,7 @@ class Finance:
             "price": int(data.get("price", 0)), "qty": float(data.get("qty", 1)),
             "invoice_status": data.get("invoice_status", ""),
             "costs": json.dumps(costs, ensure_ascii=False), "costs_total": sum(v for _, v in costs),
+            "note": str(data.get("note", "")).strip()[:2000],
         }
         row["total"] = line_total(row["price"], row["qty"])
         ts = now_iso()

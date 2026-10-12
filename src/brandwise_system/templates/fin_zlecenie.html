@@ -16,6 +16,7 @@
     <label>Fakturowanie<select name="invoice_status">{% for s in inv_statuses %}<option {{ 'selected' if s == o.invoice_status }}>{{ s }}</option>{% endfor %}</select></label>
     <label>Cena netto<input name="price" inputmode="decimal" value="{{ '%.2f'|format((o.price or 0)/100) if o.price else '' }}" placeholder="0,00"></label>
     <label>Ilość<input name="qty" inputmode="decimal" value="{{ o.qty|qty }}"></label>
+    <label class="wide">Notatka<textarea name="note" rows="3" placeholder="np. na czym stanęło, na co czekamy">{{ o.note or '' }}</textarea></label>
   </div>
   <h2>Koszty zlecenia</h2>
   <div class="costs" data-costs>

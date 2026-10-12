@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Import prospektów{% endblock %}
+{% block content %}
+<header class="top"><h1>Import prospektów</h1><a href="/prospekty?wszystkie=1">← prospekty</a></header>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+{% if not items %}
+<form method="post" action="/prospekty/import" class="card form">
+  <label>Lista w formacie JSON (np. przygotowana przez Claude z maili)<textarea name="json" rows="14" required>{{ raw }}</textarea></label>
+  <div class="actions"><button>Pokaż podgląd</button></div>
+</form>
+{% else %}
+<form method="post" action="/prospekty/import" class="card form" data-confirm="Dodać zaznaczone prospekty?">
+  <input type="hidden" name="json" value="{{ raw }}"><input type="hidden" name="zapisz" value="1">
+  <table><thead><tr><th class="sel"></th><th>Tytuł</th><th>Klient</th><th>Kontakt</th><th>Ostatnio</th><th class="num">Kwota netto</th></tr></thead><tbody>
+  {% for it in items %}<tr>
+    <td class="sel"><label class="hit"><input type="checkbox" name="pick" value="{{ it.i }}" {{ 'checked' if it.confidence != 'low' }}></label></td>
+    <td>{{ it.title }}<small>{{ it.note|truncate(160) }}</small></td>
+    <td>{% if it.client %}{{ it.client.name }}{% else %}{{ it.client_name }}<small>nowy klient</small>{% endif %}</td>
+    <td>{{ it.principal }}</td><td>{{ it.day }}</td><td class="num">{{ it.price|zl if it.price else '—' }}</td>
+  </tr>{% endfor %}
+  </tbody></table>
+  <div class="actions"><button>Dodaj zaznaczone</button><a href="/prospekty/import">Anuluj</a></div>
+</form>
+{% endif %}
+{% endblock %}

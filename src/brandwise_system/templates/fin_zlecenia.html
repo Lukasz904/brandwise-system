@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% from "_dd.html" import dd %}{% block title %}{{ K.title }}{% endblock %}
 {% block content %}
-<header class="top"><h1>{{ K.title }}</h1><a class="btn" href="{{ K.base }}/nowe">+ {{ K.new }}</a></header>
+<header class="top"><h1>{{ K.title }}</h1><div class="inline">{% if K.kind == 'prospekt' %}<a href="/prospekty/import">Import z listy</a>{% endif %}<a class="btn" href="{{ K.base }}/nowe">+ {{ K.new }}</a></div></header>
 {% if K.kind == "prospekt" %}<p class="hint">Sprawy w zaawansowanych rozmowach, jeszcze niezaakceptowane. Nie liczą się do finansów; po potwierdzeniu realizacji przenieś je do zleceń.</p>{% endif %}
 {% if request.query_params.get('blad') %}<p class="err">{{ request.query_params.get('blad') }}</p>{% endif %}
 {% if msg %}<p class="ok">{{ {'zapisano':'Zapisano.','usunieto':'Usunięto.'}.get(msg, msg.replace('-', ' ')) }}</p>{% endif %}
@@ -55,7 +55,7 @@
 <tr class="{{ 'warn' if o.invoice_status == 'Brak' }}">
   <td class="sel"><label class="hit"><input type="checkbox" name="id" value="{{ o.id }}"></label></td>
   <td>{{ o.day }}</td>
-  <td><a href="{{ K.base }}/{{ o.id }}?wroc={{ (K.base ~ "?" ~ query)|urlencode }}">{{ o.title }}</a>{% if o.principal %}<small>{{ o.principal }}</small>{% endif %}</td>
+  <td><a href="{{ K.base }}/{{ o.id }}?wroc={{ (K.base ~ "?" ~ query)|urlencode }}">{{ o.title }}</a>{% if o.principal %}<small>{{ o.principal }}</small>{% endif %}{% if o.note and K.kind == 'prospekt' %}<small class="note">{{ o.note|truncate(140) }}</small>{% endif %}</td>
   <td>{{ o.client_name }}{% if o.payer_id != o.client_id %}<small>płaci: {{ o.payer_name }}</small>{% endif %}</td>
   <td>{{ o.status }}</td>
   <td>{{ o.invoice_status }}{% if o.fk_invoice_number %}<small>{{ o.fk_invoice_number }}</small>{% endif %}</td>

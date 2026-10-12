@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS challenges (
     email TEXT,
     expires_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_hash TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    scope TEXT NOT NULL,                     -- widget (tylko odczyt podsumowania)
+    created_at TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at TEXT
+);
 CREATE TABLE IF NOT EXISTS audit (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     at TEXT NOT NULL,
@@ -151,6 +160,26 @@ class DB:
         if row is None or row["expires_at"] < iso(now()):
             return None
         return row
+
+    # ---------- tokeny API (widget) ----------
+    def create_api_token(self, name: str, scope: str = "widget") -> str:
+        token = "bw_" + secrets.token_urlsafe(32)
+        self.q("INSERT INTO api_tokens(token_hash, name, scope, created_at) VALUES (?,?,?,?)",
+               (sha(token), name.strip()[:60] or "Widget", scope, iso(now())))
+        return token
+
+    def api_token(self, token: str, scope: str):
+        row = self.one("SELECT * FROM api_tokens WHERE token_hash=? AND scope=? AND revoked_at IS NULL",
+                       (sha(token), scope))
+        if row:
+            self.q("UPDATE api_tokens SET last_used_at=? WHERE id=?", (iso(now()), row["id"]))
+        return row
+
+    def api_tokens(self):
+        return self.q("SELECT * FROM api_tokens WHERE revoked_at IS NULL ORDER BY created_at")
+
+    def revoke_api_token(self, tid: int) -> None:
+        self.q("UPDATE api_tokens SET revoked_at=? WHERE id=?", (iso(now()), tid))
 
     # ---------- sesje ----------
     def new_session(self, user_id: int, days: int) -> str:

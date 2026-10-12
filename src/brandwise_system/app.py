@@ -49,7 +49,7 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
     "Cache-Control": "no-store",
 }
-PUBLIC_PREFIXES = ("/static/", "/r/", "/logowanie", "/zaproszenie/", "/auth/logowanie", "/auth/rejestracja", "/zdrowie")
+PUBLIC_PREFIXES = ("/static/", "/r/", "/api/widget", "/logowanie", "/zaproszenie/", "/auth/logowanie", "/auth/rejestracja", "/zdrowie")
 
 
 class Guard(BaseHTTPMiddleware):
@@ -134,7 +134,56 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     @app.get("/klucze", response_class=HTMLResponse)
     async def keys(request: Request):
         user = auth.current_user(request)
-        return page(request, "klucze.html", creds=app.state.db.credentials_of(user["id"]))
+        return page(request, "klucze.html", creds=app.state.db.credentials_of(user["id"]),
+                    tokens=app.state.db.api_tokens(), new_token="")
+
+    @app.post("/klucze/widget", response_class=HTMLResponse)
+    async def widget_token(request: Request):
+        user = auth.current_user(request)
+        form = await request.form()
+        token = app.state.db.create_api_token(form.get("name", "iPhone"))
+        app.state.db.log("widget_token_created", user["email"], form.get("name", "")[:60])
+        return page(request, "klucze.html", creds=app.state.db.credentials_of(user["id"]),
+                    tokens=app.state.db.api_tokens(), new_token=token)
+
+    @app.post("/klucze/widget/{tid}/usun")
+    async def widget_token_revoke(request: Request, tid: int):
+        user = auth.current_user(request)
+        app.state.db.revoke_api_token(tid)
+        app.state.db.log("widget_token_revoked", user["email"], str(tid))
+        return RedirectResponse("/klucze", status_code=303)
+
+    @app.get("/api/widget")
+    async def widget_api(request: Request):
+        """Podsumowanie dla widgetu (Scriptable). Tylko odczyt, token w nagłówku Authorization: Bearer …"""
+        auth_h = request.headers.get("authorization", "")
+        token = auth_h[7:].strip() if auth_h.lower().startswith("bearer ") else ""
+        if not token or app.state.db.api_token(token, "widget") is None:
+            return JSONResponse({"detail": "Brak dostępu."}, status_code=401)
+        from .finance import Filters, prev_month  # noqa: F401
+        F = app.state.finance
+        month = date.today().strftime("%Y-%m")
+        s = F.month_summary(month)
+        todo = F.totals(Filters(invoice_status=("Brak",)))
+        prosp = F.totals(Filters(kind="prospekt"))
+        out = {"miesiac": s["label"], "przychod": s["revenue"], "dochod": s["profit"],
+               "do_zafakturowania": todo["total"], "do_zafakturowania_n": todo["n"],
+               "prospekty": prosp["total"], "prospekty_n": prosp["n"], "faktury": None, "marek": None,
+               "url": cfg.origin + "/"}
+        try:
+            fk = app.state.fakturownia
+            o = fk.overview(await asyncio.wait_for(fk.invoices(), 15), date.today())
+            out["faktury"] = {"nieoplacone": round(o["total_open"] * 100), "po_terminie": round(o["total_overdue"] * 100),
+                              "po_terminie_n": len(o["overdue"]), "najblizszy": (o["upcoming"][0].due.isoformat()
+                                                                                 if o["upcoming"] else None)}
+        except Exception:  # noqa: BLE001 – widget pokazuje resztę
+            pass
+        try:
+            m = await asyncio.wait_for(app.state.modules[0].fetch(), 5)
+            out["marek"] = {"czeka": m.get("states", {}).get("czeka na Ciebie", 0), "stop": bool(m.get("stopped"))}
+        except Exception:  # noqa: BLE001
+            pass
+        return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
     @app.post("/klucze/{cred_id}/usun")
     async def delete_key(request: Request, cred_id: str):

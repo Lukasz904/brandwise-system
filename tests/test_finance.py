@@ -350,3 +350,44 @@ def test_prospects_separate_and_accept(make_client):
     assert F.order(pid)["kind"] == "zlecenie" and F.order(pid)["day"] == "2026-10-12"
     assert F.month_summary("2026-10")["sales"] == 5000000
     assert c.get(f"/prospekty/{pid}").status_code == 404
+
+
+def test_widget_api_token(make_client):
+    c, app = make_client()
+    assert c.get("/api/widget").status_code == 401
+    assert c.get("/api/widget", headers={"Authorization": "Bearer zly"}).status_code == 401
+    login(c, app)
+    html = c.post("/klucze/widget", headers=H, data={"name": "iPhone"}).text
+    import re as _re
+    token = _re.search(r'<code class="token">(bw_[^<]+)</code>', html).group(1)
+    c.cookies.clear()
+    r = c.get("/api/widget", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200 and {"przychod", "do_zafakturowania", "prospekty", "faktury"} <= set(r.json())
+    assert c.get("/zlecenia").status_code == 303                   # token nie daje dostępu do reszty systemu
+    tid = app.state.db.api_tokens()[0]["id"]
+    login(c, app)
+    c.post(f"/klucze/widget/{tid}/usun", headers=H)
+    c.cookies.clear()
+    assert c.get("/api/widget", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+
+
+def test_prospect_import_preview_and_commit(make_client):
+    import json as _json
+    c, app = make_client()
+    F = app.state.finance
+    F.add_client("LUX MED")
+    login(c, app)
+    raw = _json.dumps({"prospects": [
+        {"title": "Przebudowa medika.pl", "client": "Luxmed", "principal": "Marta", "amount_net": 9600,
+         "day": "2026-10-08", "note": "czekamy na decyzję", "thread_url": "https://mail.google.com/x", "confidence": "high"},
+        {"title": "Chatbot", "client": "Nowa Firma S.A.", "amount_net": None, "day": "2026-10-05", "confidence": "low"}]})
+    html = c.post("/prospekty/import", headers=H, data={"json": raw}).text
+    assert "Przebudowa medika.pl" in html and "nowy klient" in html and F.totals(Filters(kind="prospekt"))["n"] == 0
+    r = c.post("/prospekty/import", headers=H, data={"json": raw, "zapisz": "1", "pick": ["0", "1"]})
+    assert r.status_code == 303
+    rows = {o["title"]: o for o in F.orders(Filters(kind="prospekt"))}
+    assert rows["Przebudowa medika.pl"]["client_name"] == "LUX MED"            # dopasowany istniejący klient
+    assert rows["Przebudowa medika.pl"]["total"] == 960000 and "mail.google.com" in rows["Przebudowa medika.pl"]["note"]
+    assert rows["Chatbot"]["client_name"] == "Nowa Firma S.A."
+    assert "Niepoprawny" in c.post("/prospekty/import", headers=H, data={"json": "{zle"}).text or \
+        "JSON" in c.post("/prospekty/import", headers=H, data={"json": "{zle"}).text
