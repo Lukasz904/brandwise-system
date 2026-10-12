@@ -174,3 +174,6 @@ form.accept{margin-top:16px}form.accept h2{margin-top:0}
 .dash .stat small{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dash .stat span{display:block}
 .dash .stats.row{grid-template-columns:repeat(4,minmax(0,1fr))}
+small.note{color:var(--ink);opacity:.75;margin-top:2px}
+.top .inline{margin:0}
+code.token{word-break:break-all;font-size:15px;display:block;padding:10px;user-select:all}

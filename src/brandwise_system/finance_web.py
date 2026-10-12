@@ -74,6 +74,7 @@ def form_order(form) -> dict:
         "price": to_grosze(form.get("price")), "qty": to_qty(form.get("qty")),
         "invoice_status": form.get("invoice_status", ""),
         "costs": [[n, to_grosze(v)] for n, v in zip(names, values)],
+        "note": form.get("note", ""),
     }
 
 
@@ -140,7 +141,7 @@ async def _save(request: Request, K: dict, oid: int | None):
         data["kind"] = K["kind"]
         new_id = F.save_order(data, oid)
     except (ValueError, OverflowError) as e:
-        data = {k: form.get(k, "") for k in ("hashtag", "day", "title", "status", "principal", "invoice_status")}
+        data = {k: form.get(k, "") for k in ("hashtag", "day", "title", "status", "principal", "invoice_status", "note")}
         data.update(id=oid, client_id=int(form.get("client_id") or 0), payer_id=int(form.get("payer_id") or 0),
                     price=0, qty=form.get("qty") or 1, costs_list=[])
         return page(request, "fin_zlecenie.html", K=K, o=data, clients=client_choices(F, data["client_id"], data["payer_id"]),
@@ -202,6 +203,62 @@ def register(K: dict) -> None:
 
 for _K in KINDS.values():
     register(_K)
+
+
+def _parse_prospects(raw: str, F: Finance) -> list[dict]:
+    try:
+        items = json.loads(raw)
+    except ValueError as e:
+        raise ValueError("To nie jest poprawny JSON.") from e
+    if isinstance(items, dict):
+        items = items.get("prospects") or items.get("prospekty") or []
+    if not isinstance(items, list):
+        raise ValueError("Oczekuję listy prospektów.")
+    out = []
+    for i, it in enumerate(items):
+        if not isinstance(it, dict) or not str(it.get("title", "")).strip() or not str(it.get("client", "")).strip():
+            raise ValueError(f"Pozycja {i + 1}: brak tytułu albo klienta.")
+        amount = it.get("amount_net")
+        price = to_grosze(amount) if amount not in (None, "") else 0
+        day = str(it.get("day") or date.today().isoformat())[:10]
+        date.fromisoformat(day)
+        client = F.find_client(str(it["client"]))
+        note = " ".join(x for x in (str(it.get("note") or "").strip(), str(it.get("thread_url") or "").strip()) if x)
+        out.append({"i": i, "title": str(it["title"]).strip()[:250], "client_name": str(it["client"]).strip()[:120],
+                    "client": client, "principal": str(it.get("principal") or "").strip()[:120], "price": price,
+                    "day": day, "note": note[:2000], "confidence": str(it.get("confidence") or "")})
+    return out
+
+
+@router.get("/prospekty/import", response_class=HTMLResponse)
+async def prospects_import_form(request: Request):
+    return page(request, "fin_prospekty_import.html", items=None, raw="", error="")
+
+
+@router.post("/prospekty/import", response_class=HTMLResponse)
+async def prospects_import(request: Request):
+    form = await request.form()
+    F = fin(request)
+    raw = form.get("json", "")
+    try:
+        items = _parse_prospects(raw, F)
+    except ValueError as e:
+        return page(request, "fin_prospekty_import.html", items=None, raw=raw, error=str(e))
+    if form.get("zapisz") != "1":
+        return page(request, "fin_prospekty_import.html", items=items, raw=raw, error="")
+    chosen = {int(x) for x in form.getlist("pick") if x.isdigit()}
+    statuses = F.get_list("status")
+    n = 0
+    for it in items:
+        if it["i"] not in chosen:
+            continue
+        cid = it["client"]["id"] if it["client"] else F.add_client(it["client_name"])
+        F.save_order({"kind": "prospekt", "day": it["day"], "title": it["title"], "client_id": cid, "payer_id": cid,
+                      "principal": it["principal"], "price": it["price"], "qty": 1,
+                      "status": statuses[0] if statuses else "", "invoice_status": "Brak", "note": it["note"]})
+        n += 1
+    log(request, "prospects_imported", str(n))
+    return back("/prospekty?wszystkie=1", f"zaimportowano-{n}")
 
 
 @router.post("/prospekty/{oid:int}/do-zlecen")
