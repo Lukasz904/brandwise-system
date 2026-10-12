@@ -53,7 +53,9 @@ async function login() {
         clientExtensionResults: cred.getClientExtensionResults(),
       },
     });
-    location.href = "/";
+    const btn = document.querySelector("[data-passkey-login]");
+    const next = (btn && btn.dataset.next) || "";
+    location.href = next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/";
   } catch (e) { show(friendly(e)); }
 }
 

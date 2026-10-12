@@ -196,3 +196,5 @@ form.accept{margin-top:16px}form.accept h2{margin-top:0}
 small.note{color:var(--ink);opacity:.75;margin-top:2px}
 .top .inline{margin:0}
 code.token{word-break:break-all;font-size:15px;display:block;padding:10px;user-select:all}
+
+.perm{margin:0;padding-left:20px}.consent{display:flex;gap:10px}

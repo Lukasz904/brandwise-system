@@ -33,6 +33,11 @@ def current_user(request: Request):
     return request.app.state.db.session_user(token)
 
 
+def safe_next(v: str) -> str:
+    """Powrót po zalogowaniu – tylko ścieżki w obrębie systemu."""
+    return v if v.startswith("/") and not v.startswith("//") and "\\" not in v else "/"
+
+
 def _rp_id(request: Request) -> str:
     return request.app.state.cfg.host
 
