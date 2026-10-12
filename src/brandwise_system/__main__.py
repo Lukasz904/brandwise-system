@@ -27,6 +27,8 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("import-panel")
     imp.add_argument("plik")
     imp.add_argument("--zastap", action="store_true", help="zastąp zlecenia, klientów i koszty w nowym systemie")
+    imp.add_argument("--jak-w-starym", action="store_true",
+                     help="nie poprawiaj błędów liczenia starego panelu (kwoty z przecinkiem/spacją)")
     args = ap.parse_args(argv)
     cfg = load(args.config)
 
@@ -70,16 +72,21 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         try:
             finance = Finance(DB(cfg.db_path))
-            stats = import_legacy(finance, parse_dump(text), replace=args.zastap)
+            stats = import_legacy(finance, parse_dump(text), replace=args.zastap, fix=not args.jak_w_starym)
         except ImportErrorPL as e:
             print(f"Import przerwany: {e}", file=sys.stderr)
             return 2
         print(f"Zaimportowano: klienci {stats['klienci']}, zlecenia {stats['zlecenia']}, koszty {stats['koszty']}")
         for p in stats["pominiete"]:
             print(f"  uwaga: {p}")
-        print("Kontrola (rok · zleceń · suma netto) – porównaj ze starym panelem:")
-        for y, n, t in check_totals(finance):
-            print(f"  {y} · {n} · {zl(t)}")
+        if stats["korekty"]:
+            d = sum(new - old for _, _, old, new in stats["korekty"])
+            print(f"Poprawione błędy starego panelu ({len(stats['korekty'])}):")
+            for kind, oid, old, new in stats["korekty"]:
+                print(f"  zlecenie {oid}: {'koszty' if kind == 'koszty' else 'wartość'} {zl(old)} → {zl(new)}")
+        print("Kontrola – rok · zleceń · sprzedaż netto · koszty zleceń · przychód (sprzedaż − koszty):")
+        for y, n, t, c in check_totals(finance):
+            print(f"  {y} · {n} · {zl(t)} · {zl(c)} · {zl(t - c)}")
         return 0
     return 1
 

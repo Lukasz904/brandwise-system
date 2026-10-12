@@ -41,7 +41,7 @@
   <input type="date" name="day" title="data bez zmian, jeśli puste">
   <button class="small">Zmień zaznaczone</button>
 </div>
-<table class="orders"><thead><tr><th><input type="checkbox" data-check-all></th><th>Data</th><th>Nr</th><th>Tytuł</th><th>Klient</th><th>Status</th><th>Fakturowanie</th><th class="num">Wartość</th><th class="num">Koszty</th><th></th></tr></thead><tbody>
+<table class="orders"><thead><tr><th><input type="checkbox" data-check-all></th><th>Data</th><th>Nr</th><th>Tytuł</th><th>Klient</th><th>Status</th><th>Fakturowanie</th><th class="num">Kwota</th><th></th></tr></thead><tbody>
 {% for o in orders %}
 <tr class="{{ 'warn' if o.invoice_status == 'Brak' }}">
   <td><input type="checkbox" name="id" value="{{ o.id }}"></td>
@@ -51,11 +51,12 @@
   <td>{{ o.client_name }}{% if o.payer_id != o.client_id %}<small>płaci: {{ o.payer_name }}</small>{% endif %}</td>
   <td>{{ o.status }}</td>
   <td>{{ o.invoice_status }}</td>
-  <td class="num">{{ o.total|zl }}{% if o.qty != 1 %}<small>{{ o.qty|qty }} × {{ o.price|zl }}</small>{% endif %}</td>
-  <td class="num">{{ o.costs_total|zl if o.costs_total else '' }}</td>
+  <td class="num{{ ' hascost' if o.costs_total }}">{{ (o.total - o.costs_total)|zl }}
+    {% if o.costs_total %}<small>{{ o.total|zl }} − koszty {{ o.costs_total|zl }}</small>{% endif %}
+    {% if o.qty != 1 %}<small>{{ o.qty|qty }} × {{ o.price|zl }}</small>{% endif %}</td>
   <td class="act"><a href="/zlecenia/{{ o.id }}/duplikuj" title="Duplikuj">⧉</a></td>
 </tr>
-{% else %}<tr><td colspan="10" class="hint">Brak zleceń dla tych filtrów.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="9" class="hint">Brak zleceń dla tych filtrów.</td></tr>{% endfor %}
 </tbody></table>
 </form>
 {% if orders|length >= limit %}<p class="hint">Pokazano pierwsze {{ limit }} zleceń – zawęź filtry. Sumy liczone są dla wszystkich.</p>{% endif %}
