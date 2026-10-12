@@ -10,7 +10,7 @@ nav{display:flex;gap:22px;align-items:center;padding:12px 24px;background:#fff;b
 flex-wrap:wrap;position:sticky;top:0;z-index:5}
 nav a{color:var(--ink);text-decoration:none;font-weight:600}nav a.on{color:var(--accent)}
 nav a.brand img{height:32px;display:block}nav .sp{flex:1}nav form{margin:0}
-nav .menu{display:contents}.burger{display:none}.ftoggle{display:none}
+nav .menu{display:contents}.menu-t,.burger{display:none}.ftoggle{display:none}
 a{color:var(--accent)}
 h1{font-size:30px;line-height:1.2;margin:0;color:var(--head);font-weight:600}
 h2{font-size:19px;margin:32px 0 12px;color:var(--head);font-weight:600}
@@ -166,20 +166,21 @@ form.accept{margin-top:16px}form.accept h2{margin-top:0}
 @media (max-width:640px){
   nav{flex-wrap:nowrap;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
   nav .sp{display:none}
-  .burger{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;margin-right:-8px;
+  .burger{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;margin-right:-8px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
           background:none;border-radius:12px}
   .burger:hover{background:var(--bg)}
   .burger span,.burger span::before,.burger span::after{display:block;width:22px;height:2px;background:var(--head);
           border-radius:2px;position:relative;transition:transform .2s,background .2s}
   .burger span::before,.burger span::after{content:"";position:absolute;left:0}
   .burger span::before{top:-7px}.burger span::after{top:7px}
-  nav.open .burger span{background:transparent}
-  nav.open .burger span::before{transform:translateY(7px) rotate(45deg)}
-  nav.open .burger span::after{transform:translateY(-7px) rotate(-45deg)}
+  .menu-t:checked + .burger span{background:transparent}
+  .menu-t:checked + .burger span::before{transform:translateY(7px) rotate(45deg)}
+  .menu-t:checked + .burger span::after{transform:translateY(-7px) rotate(-45deg)}
   nav .menu{display:none;position:absolute;left:0;right:0;top:100%;background:#fff;border-bottom:1px solid var(--line);
           box-shadow:0 14px 24px rgba(60,40,80,.12);padding:6px 16px 14px;flex-direction:column;
           max-height:calc(100vh - 60px);overflow-y:auto}
-  nav.open .menu{display:flex}
+  .menu-t:checked ~ .menu{display:flex}
   nav .menu a,nav .menu form{padding:12px 4px;border-bottom:1px solid var(--line);font-size:17px}
   nav .menu form:last-child{border-bottom:0}
   nav .menu button.link{font-size:17px;width:100%;text-align:left}

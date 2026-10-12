@@ -34,6 +34,18 @@ templates.env.filters["zlint"] = lambda g: f"{round(g / 100):,}".replace(",", "\
 templates.env.filters["qty"] = lambda v: (f"{v:g}".replace(".", ",") if isinstance(v, (int, float)) else v)
 templates.env.filters["fin_choice"] = lambda c, sel: (c["id"], c["name"], c["id"] in sel)
 templates.env.filters["str_choice"] = lambda v, sel: (v, v, v in sel)
+
+_ASSET_V: dict[str, str] = {}
+
+
+def asset(name: str) -> str:
+    """URL pliku statycznego z wersją (hash treści) – PWA na iOS nie trzyma starego CSS/JS po wdrożeniu."""
+    if name not in _ASSET_V:
+        _ASSET_V[name] = __import__("hashlib").sha256((HERE / "static" / name).read_bytes()).hexdigest()[:10]
+    return f"/static/{name}?v={_ASSET_V[name]}"
+
+
+templates.env.globals["asset"] = asset
 templates.env.filters["fromjson"] = lambda v: __import__("json").loads(v or "[]")
 
 
@@ -67,6 +79,10 @@ class Guard(BaseHTTPMiddleware):
         resp = await call_next(request)
         for k, v in SECURITY_HEADERS.items():
             if k == "Cache-Control" and path.startswith("/static/"):
+                # wersjonowane (?v=hash) – na zawsze; reszta – zawsze sprawdzaj ETag
+                v = ("public, max-age=31536000, immutable" if request.query_params.get("v")
+                     else "no-cache")
+                resp.headers.setdefault(k, v)
                 continue
             resp.headers.setdefault(k, v)
         return resp
