@@ -30,7 +30,7 @@ def test_overview():
         inv(6, TODAY + timedelta(days=2), currency="EUR"),
         inv(7, None),
     ]
-    o = Fakturownia.overview([parse(r) for r in raw], TODAY)
+    o = Fakturownia("", "", ["vat"]).overview([parse(r) for r in raw], TODAY)
     assert [i.id for i in o["overdue"]] == [1, 2]
     assert [i.id for i in o["upcoming"]] == [4, 6, 3]
     assert [i.id for i in o["no_due"]] == [7]

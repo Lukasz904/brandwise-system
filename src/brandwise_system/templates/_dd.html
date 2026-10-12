@@ -1,0 +1,7 @@
+{# Rozwijana lista wielokrotnego wyboru (bez JS): name, label, items [(value, text, selected)] #}
+{% macro dd(name, label, items) -%}
+{% set chosen = items|selectattr(2)|list %}
+<details class="dd"><summary><span class="dd-l">{{ label }}</span><span class="dd-v">{% if chosen %}{{ chosen|map(attribute=1)|join(', ')|truncate(28, True, '…') }}{% else %}wszystkie{% endif %}</span></summary>
+<div class="dd-menu">{% for v, t, sel in items %}<label class="check"><input type="checkbox" name="{{ name }}" value="{{ v }}" {{ 'checked' if sel }}> {{ t }}</label>{% endfor %}</div>
+</details>
+{%- endmacro %}

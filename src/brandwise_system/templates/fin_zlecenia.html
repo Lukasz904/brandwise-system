@@ -1,26 +1,31 @@
-{% extends "base.html" %}{% block title %}Zlecenia{% endblock %}
+{% extends "base.html" %}{% from "_dd.html" import dd %}{% block title %}Zlecenia{% endblock %}
 {% block content %}
 <header class="top"><h1>Zlecenia</h1><a class="btn" href="/zlecenia/nowe">+ Nowe zlecenie</a></header>
 {% if request.query_params.get('blad') %}<p class="err">{{ request.query_params.get('blad') }}</p>{% endif %}
-{% if msg %}<p class="ok">{{ {'zapisano':'Zapisano.','usunieto':'Usunięto.'}.get(msg, 'Zmieniono zlecenia: ' ~ msg.split('-')[-1] ~ '.') }}</p>{% endif %}
+{% if msg %}<p class="ok">{{ {'zapisano':'Zapisano.','usunieto':'Usunięto.'}.get(msg, msg.replace('-', ' ')) }}</p>{% endif %}
+
+<div class="presets">
+  <a href="/zlecenia?okres=biezacy" class="{{ 'on' if preset == 'biezacy' }}">Bieżący miesiąc</a>
+  <a href="/zlecenia?okres=poprzedni" class="{{ 'on' if preset == 'poprzedni' }}">Poprzedni miesiąc</a>
+  <a href="/zlecenia?faktura=Brak&wszystkie=1" class="{{ 'on' if f.invoice_status == ('Brak',) and not f.day_from }}">Do zafakturowania</a>
+  <a href="/zlecenia?wszystkie=1" class="{{ 'on' if f.empty }}">Wszystkie</a>
+</div>
 
 <form class="filters" method="get" action="/zlecenia">
   <label>Od<input type="date" name="od" value="{{ f.day_from }}"></label>
   <label>Do<input type="date" name="do" value="{{ f.day_to }}"></label>
-  <label>Klient<select name="klient" multiple size="4">{% for c in clients %}<option value="{{ c.id }}" {{ 'selected' if c.id in f.client_id }}>{{ c.name }}</option>{% endfor %}</select></label>
-  <label>Płatnik<select name="platnik" multiple size="4">{% for c in clients %}<option value="{{ c.id }}" {{ 'selected' if c.id in f.payer_id }}>{{ c.name }}</option>{% endfor %}</select></label>
-  <label>Status<select name="status" multiple size="4">{% for s in statuses %}<option {{ 'selected' if s in f.status }}>{{ s }}</option>{% endfor %}</select></label>
-  <label>Fakturowanie<select name="faktura" multiple size="4">{% for s in inv_statuses %}<option {{ 'selected' if s in f.invoice_status }}>{{ s }}</option>{% endfor %}</select></label>
+  {{ dd('klient', 'Klient', clients|map('fin_choice', f.client_id)|list) }}
+  {{ dd('platnik', 'Płatnik', clients|map('fin_choice', f.payer_id)|list) }}
+  {{ dd('status', 'Status', statuses|map('str_choice', f.status)|list) }}
+  {{ dd('faktura', 'Fakturowanie', inv_statuses|map('str_choice', f.invoice_status)|list) }}
   <label>Zleceniodawca<input name="zleceniodawca" value="{{ f.principal }}"></label>
-  <label>Nr / hashtag<input name="hashtag" value="{{ f.hashtag }}"></label>
   <label>Szukaj w tytule<input name="q" value="{{ f.q }}"></label>
-  <label class="check"><input type="checkbox" name="wycenione" value="1" {{ 'checked' if f.priced_only }}> tylko wycenione</label>
-  <div class="actions"><button>Filtruj</button> <a href="/zlecenia">bieżący miesiąc</a> · <a href="/zlecenia?wszystkie=1">wszystkie</a></div>
+  <div class="actions"><button>Filtruj</button><a href="/zlecenia?wszystkie=1">wyczyść</a></div>
 </form>
 
 <div class="stats wide four">
   <div class="stat"><b>{{ totals.n }}</b><span>zleceń</span></div>
-  <div class="stat"><b>{{ totals.total|zl }}</b><span>wartość netto</span></div>
+  <div class="stat"><b>{{ totals.total|zl }}</b><span>sprzedaż netto</span></div>
   <div class="stat"><b>{{ totals.costs|zl }}</b><span>koszty zleceń</span></div>
   <div class="stat ok"><b>{{ totals.net|zl }}</b><span>przychód</span></div>
 </div>
@@ -39,24 +44,24 @@
   <select name="status"><option value="">status bez zmian</option>{% for s in statuses %}<option>{{ s }}</option>{% endfor %}</select>
   <select name="invoice_status"><option value="">fakturowanie bez zmian</option>{% for s in inv_statuses %}<option>{{ s }}</option>{% endfor %}</select>
   <input type="date" name="day" title="data bez zmian, jeśli puste">
-  <button class="small">Zmień zaznaczone</button>
+  <button class="small ghost">Zmień zaznaczone</button>
+  <button class="small" formaction="/zlecenia/faktura" formmethod="get">Wystaw fakturę z zaznaczonych</button>
 </div>
-<table class="orders"><thead><tr><th><input type="checkbox" data-check-all></th><th>Data</th><th>Nr</th><th>Tytuł</th><th>Klient</th><th>Status</th><th>Fakturowanie</th><th class="num">Kwota</th><th></th></tr></thead><tbody>
+<table class="orders"><thead><tr><th class="sel"><label class="hit"><input type="checkbox" data-check-all></label></th><th>Data</th><th>Tytuł</th><th>Klient</th><th>Status</th><th>Fakturowanie</th><th class="num">Kwota</th><th></th></tr></thead><tbody>
 {% for o in orders %}
 <tr class="{{ 'warn' if o.invoice_status == 'Brak' }}">
-  <td><input type="checkbox" name="id" value="{{ o.id }}"></td>
+  <td class="sel"><label class="hit"><input type="checkbox" name="id" value="{{ o.id }}"></label></td>
   <td>{{ o.day }}</td>
-  <td>{{ o.hashtag }}</td>
-  <td><a href="/zlecenia/{{ o.id }}?wroc=/zlecenia?{{ query|urlencode }}">{{ o.title }}</a>{% if o.principal %}<small>{{ o.principal }}</small>{% endif %}{% if o.account_legacy %}<small>account: {{ o.account_legacy }}</small>{% endif %}</td>
+  <td><a href="/zlecenia/{{ o.id }}?wroc=/zlecenia?{{ query|urlencode }}">{{ o.title }}</a>{% if o.principal %}<small>{{ o.principal }}</small>{% endif %}</td>
   <td>{{ o.client_name }}{% if o.payer_id != o.client_id %}<small>płaci: {{ o.payer_name }}</small>{% endif %}</td>
   <td>{{ o.status }}</td>
-  <td>{{ o.invoice_status }}</td>
+  <td>{{ o.invoice_status }}{% if o.fk_invoice_number %}<small>{{ o.fk_invoice_number }}</small>{% endif %}</td>
   <td class="num{{ ' hascost' if o.costs_total }}">{{ (o.total - o.costs_total)|zl }}
     {% if o.costs_total %}<small>{{ o.total|zl }} − koszty {{ o.costs_total|zl }}</small>{% endif %}
     {% if o.qty != 1 %}<small>{{ o.qty|qty }} × {{ o.price|zl }}</small>{% endif %}</td>
   <td class="act"><a href="/zlecenia/{{ o.id }}/duplikuj" title="Duplikuj">⧉</a></td>
 </tr>
-{% else %}<tr><td colspan="9" class="hint">Brak zleceń dla tych filtrów.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="8" class="hint">Brak zleceń dla tych filtrów.</td></tr>{% endfor %}
 </tbody></table>
 </form>
 {% if orders|length >= limit %}<p class="hint">Pokazano pierwsze {{ limit }} zleceń – zawęź filtry. Sumy liczone są dla wszystkich.</p>{% endif %}

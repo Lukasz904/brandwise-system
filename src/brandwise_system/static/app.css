@@ -124,3 +124,23 @@ tfoot td{border-top:1px solid var(--line);background:#fcfbfd}
   .costrow{grid-template-columns:1fr 110px}
 }
 td.hascost{color:var(--accent-d);font-weight:600}td.hascost small{font-weight:400}
+
+/* checkboxy i rozwijane filtry */
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);cursor:pointer;flex:none}
+th.sel,td.sel{width:1%;padding:0}
+label.hit{display:flex;align-items:center;justify-content:center;padding:12px 14px;cursor:pointer;margin:0}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.presets a{padding:6px 14px;border-radius:30px;border:1px solid var(--line);background:#fff;text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
+.presets a.on{background:var(--head);border-color:var(--head);color:#fff}
+.dd{position:relative;font-size:14px}
+.dd summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.dd summary::-webkit-details-marker{display:none}
+.dd .dd-l{color:var(--mute);font-weight:600}
+.dd .dd-v{border:1px solid var(--line);border-radius:12px;padding:10px 34px 10px 14px;background:#fff;color:var(--ink);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.dd .dd-v::after{content:"▾";position:absolute;right:12px;color:var(--mute)}
+.dd[open] .dd-v{border-color:var(--accent)}
+.dd-menu{position:absolute;z-index:10;top:100%;left:0;min-width:max(100%,260px);max-width:360px;max-height:320px;overflow:auto;background:#fff;
+border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(86,37,106,.12);padding:6px;margin-top:4px}
+.dd-menu label.check{color:var(--ink);font-weight:400;padding:6px 8px;border-radius:8px;cursor:pointer}
+.dd-menu label.check:hover{background:var(--bg)}

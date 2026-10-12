@@ -29,6 +29,9 @@ class Config:
     fakturownia_token: str = ""     # z .env, nigdy w repo
     fakturownia_kinds: list[str] = field(default_factory=lambda: ["vat"])
     fakturownia_cache_seconds: int = 300
+    fakturownia_hidden: list[str] = field(default_factory=list)   # nabywcy ukryci w podsumowaniach (np. spór sądowy)
+    vat_rate: int = 23
+    default_payment_days: int = 14
     finanse_url: str = ""
     links: list[Link] = field(default_factory=list)
 
@@ -68,6 +71,9 @@ def load(path: str | Path | None = None, env: dict | None = None) -> Config:
         fakturownia_token=env.get("FAKTUROWNIA_API_TOKEN", ""),
         fakturownia_kinds=list(fk.get("kinds", ["vat"])),
         fakturownia_cache_seconds=int(fk.get("cache_seconds", 300)),
+        fakturownia_hidden=list(fk.get("ukryj", [])),
+        vat_rate=int(fk.get("vat", 23)),
+        default_payment_days=int(fk.get("termin_dni", 14)),
         finanse_url=raw.get("finanse", {}).get("url", ""),
         links=links,
     )

@@ -142,7 +142,7 @@ def test_public_report_and_xlsx(make_client):
     assert "tajny koszt" not in html and "123,00" not in html and "Faktura" not in html
     x = c.get(f"/r/{token}/xlsx")
     ws = load_workbook(io.BytesIO(x.content)).active
-    assert ws["C2"].value == "Kartka świąteczna" and ws["H2"].value == 500.0
+    assert ws["B2"].value == "Kartka świąteczna" and ws["G2"].value == 500.0
     assert c.get("/r/zly-token").status_code == 404
     assert c.get("/raporty").status_code == 303                  # lista linków tylko po zalogowaniu
 
@@ -250,3 +250,80 @@ def test_import_fixes_old_php_truncation(tmp_path):
     old = Finance(DB(tmp_path / "b.db"))
     import_legacy(old, data, fix=False)
     assert old.order(10)["costs_total"] == 28800 and old.order(11)["total"] == 100
+
+
+def test_invoice_from_orders(make_client):
+    import json as _json
+
+    import httpx
+
+    from brandwise_system.modules.fakturownia import Fakturownia
+    sent = []
+
+    def h(req):
+        if req.url.path == "/clients.json":
+            return httpx.Response(200, json=[{"id": 77, "name": "Allianz Polska S.A.", "tax_no": "5250009000"}])
+        if req.url.path == "/invoices.json" and req.method == "POST":
+            sent.append(_json.loads(req.content))
+            return httpx.Response(201, json={"id": 555, "number": "FV 12/10/2026", "price_net": "1450.00"})
+        return httpx.Response(200, json=[])
+    fk = Fakturownia("brandwise", "tok", ["vat"], transport=httpx.MockTransport(h))
+    c, app = make_client(fk=fk)
+    F = app.state.finance
+    a, b = F.add_client("Allianz"), F.add_client("LUX MED")
+    o1 = F.save_order({"day": "2026-10-02", "title": "Kartka", "client_id": a, "payer_id": a, "price": 100000,
+                       "qty": 1, "invoice_status": "Brak"})
+    o2 = F.save_order({"day": "2026-10-05", "title": "Baner", "client_id": a, "payer_id": a, "price": 15000,
+                       "qty": 3, "invoice_status": "Brak"})
+    o3 = F.save_order({"day": "2026-10-05", "title": "Inny", "client_id": b, "payer_id": b, "price": 100,
+                       "qty": 1, "invoice_status": "Brak"})
+    login(c, app)
+    r = c.get(f"/zlecenia/faktura?id={o1}&id={o3}")             # różni płatnicy – odmowa
+    assert r.status_code == 303 and "blad=" in r.headers["location"]
+    html = c.get(f"/zlecenia/faktura?id={o1}&id={o2}").text
+    assert "Allianz Polska S.A." in html and 'value="77" selected' in html and "1 783,50 zł" in html   # brutto
+    r = c.post("/zlecenia/faktura", headers=H, data={
+        "id": [o1, o2], "fk_client_id": "77", "issue_date": "2026-10-12", "sell_date": "2026-10-05", "days": "21",
+        f"nazwa_{o2}": "Baner 300x250", "zapamietaj": "1", "wroc": "/zlecenia"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/zlecenia/faktura/555")
+    inv = sent[0]["invoice"]
+    assert inv["client_id"] == 77 and inv["payment_to_kind"] == 21 and inv["sell_date"] == "2026-10-05"
+    assert inv["positions"] == [{"name": "Kartka", "quantity": "1", "price_net": "1000.00", "tax": 23},
+                                {"name": "Baner 300x250", "quantity": "3", "price_net": "150.00", "tax": 23}]
+    assert F.order(o1)["invoice_status"] == "Faktura" and F.order(o2)["fk_invoice_number"] == "FV 12/10/2026"
+    assert F.client(a)["fk_client_id"] == 77 and F.client(a)["payment_days"] == 21
+    # ponowne wystawienie tych samych zleceń – odmowa, bez drugiej faktury
+    r = c.post("/zlecenia/faktura", headers=H, data={"id": [o1, o2], "fk_client_id": "77", "issue_date": "2026-10-12",
+                                                    "sell_date": "2026-10-05", "days": "21"})
+    assert "blad=" in r.headers["location"] and len(sent) == 1
+
+
+def test_presets_hidden_buyers_and_cost_copy(make_client):
+    from datetime import date as _d
+
+    import httpx
+
+    from brandwise_system.finance import prev_month
+    from brandwise_system.modules.fakturownia import Fakturownia
+    inv = [{"id": 1, "number": "FV 1", "buyer_name": "Internetica Sp. z o.o.", "kind": "vat", "status": "issued",
+            "payment_to": "2024-09-20", "price_gross": "1000", "price_net": "0", "paid": "0", "currency": "PLN"},
+           {"id": 2, "number": "FV 2", "buyer_name": "Allianz", "kind": "vat", "status": "issued",
+            "payment_to": "2024-10-20", "price_gross": "200", "price_net": "0", "paid": "0", "currency": "PLN"}]
+    fk = Fakturownia("brandwise", "t", ["vat"], hidden_buyers=["Internetica"], transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json=inv if r.url.params.get("page") == "1" else [])))
+    c, app = make_client(fk=fk)
+    login(c, app)
+    html = c.get("/faktury").text
+    assert "Pominięto w podsumowaniu: 1" in html and "200,00 zł" in html and "FV 1</a>" not in html
+    F = app.state.finance
+    cid = F.add_client("X")
+    prev = prev_month(_d.today().strftime("%Y-%m"))
+    F.save_order({"day": f"{prev}-15", "title": "Z poprzedniego", "client_id": cid, "payer_id": cid, "price": 100})
+    assert "Z poprzedniego" in c.get("/zlecenia?okres=poprzedni").text
+    assert "Z poprzedniego" not in c.get("/zlecenia?okres=biezacy").text
+    F.add_cost(prev, "Biuro", 1000); F.add_cost(prev, "Leasing", 2000)
+    ids = [r["id"] for r in F.costs(prev)]
+    month = _d.today().strftime("%Y-%m")
+    assert "Skopiuj z" in c.get(f"/koszty?m={month}").text
+    c.post("/koszty/kopiuj", headers=H, data={"src": prev, "dst": month, "id": [ids[0]]})
+    assert [r["name"] for r in F.costs(month)] == ["Biuro"]

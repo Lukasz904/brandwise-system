@@ -93,12 +93,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const all = document.querySelector("[data-check-all]");
   if (all) all.addEventListener("change", () =>
     document.querySelectorAll('#bulk input[name="id"]').forEach((c) => (c.checked = all.checked)));
+  const allc = document.querySelector("[data-check-all-costs]");
+  if (allc) allc.addEventListener("change", () =>
+    allc.closest("form").querySelectorAll('input[name="id"]').forEach((c) => (c.checked = allc.checked)));
   const add = document.querySelector("[data-add-cost]");
   if (add) add.addEventListener("click", () => {
     const box = document.querySelector("[data-costs]");
     const row = box.lastElementChild.cloneNode(true);
     row.querySelectorAll("input").forEach((i) => (i.value = ""));
     box.appendChild(row);
+  });
+  document.addEventListener("click", (ev) => {
+    document.querySelectorAll("details.dd[open]").forEach((d) => { if (!d.contains(ev.target)) d.open = false; });
   });
   if (!window.PublicKeyCredential && (l || r)) show("Ta przeglądarka nie obsługuje kluczy dostępu.");
 });
