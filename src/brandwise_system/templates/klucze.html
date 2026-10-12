@@ -1,13 +1,4 @@
-{% extends "base.html" %}{% block title %}Klucze dostępu<h2>Widget na iPhone (Scriptable)</h2>
-{% if new_token %}<div class="card"><p class="ok">Token utworzony – skopiuj go teraz, później nie będzie widoczny:</p>
-<p><code class="token">{{ new_token }}</code></p><p class="hint">Wklejasz go w Scriptable przy pierwszym uruchomieniu skryptu. Token pozwala tylko odczytać podsumowanie dashboardu.</p></div>{% endif %}
-<table><thead><tr><th>Token</th><th>Utworzony</th><th>Ostatnio użyty</th><th></th></tr></thead><tbody>
-{% for t in tokens %}<tr><td>{{ t.name }}</td><td>{{ t.created_at[:10] }}</td><td>{{ (t.last_used_at or '—')[:16]|replace('T', ' ') }}</td>
-<td class="act"><form method="post" action="/klucze/widget/{{ t.id }}/usun" data-confirm="Wyłączyć token „{{ t.name }}”? Widget przestanie działać."><button class="small ghost">Wyłącz</button></form></td></tr>
-{% else %}<tr><td colspan="4" class="hint">Brak tokenów.</td></tr>{% endfor %}
-</tbody></table>
-<form method="post" action="/klucze/widget" class="inline" style="margin-top:12px"><input name="name" value="iPhone" maxlength="60"><button>Utwórz token widgetu</button></form>
-{% endblock %}
+{% extends "base.html" %}{% block title %}Klucze dostępu{% endblock %}
 {% block content %}
 <header class="top"><h1>Klucze dostępu</h1></header>
 <table><thead><tr><th>Nazwa</th><th>Utworzony</th><th>Ostatnio użyty</th><th></th></tr></thead><tbody>
@@ -29,4 +20,11 @@
 {% else %}<tr><td colspan="4" class="hint">Brak tokenów.</td></tr>{% endfor %}
 </tbody></table>
 <form method="post" action="/klucze/widget" class="inline" style="margin-top:12px"><input name="name" value="iPhone" maxlength="60"><button>Utwórz token widgetu</button></form>
+<h2>Połączone aplikacje</h2>
+<p class="hint">Claude (connector „Brandwise”) – może dopisywać prospekty i szukać w zleceniach. Odłączenie działa natychmiast.</p>
+<table><thead><tr><th>Aplikacja</th><th>Połączona</th><th>Ostatnio użyta</th><th></th></tr></thead><tbody>
+{% for g in grants %}<tr><td>{{ g.client_name }}</td><td>{{ g.created_at[:10] }}</td><td>{{ (g.last_used_at or '—')[:16]|replace('T', ' ') }}</td>
+<td class="act"><form method="post" action="/klucze/aplikacje/{{ g.id }}/odlacz" data-confirm="Odłączyć „{{ g.client_name }}”?"><button class="small ghost">Odłącz</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="hint">Brak połączeń.</td></tr>{% endfor %}
+</tbody></table>
 {% endblock %}

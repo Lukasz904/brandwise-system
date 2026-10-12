@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Zgoda na dostęp{% endblock %}
+{% block content %}
+<div class="login">
+  <img src="/static/logo.svg" alt="brandwise" class="logo">
+  <h1>Połączyć z Claude?</h1>
+  <p><b>{{ c.name }}</b> prosi o dostęp do systemu Brandwise.</p>
+  <ul class="perm">
+    <li>dopisywanie <b>prospektów</b> (bez zleceń, faktur, edycji i usuwania),</li>
+    <li>odczyt listy klientów,</li>
+    <li>wyszukiwanie w zleceniach i prospektach (tytuł, klient, kwota, status).</li>
+  </ul>
+  <p class="hint">Po zgodzie wrócisz do <b>{{ qp.get('redirect_uri', '').split('/')[2] }}</b>. Połączenie odłączysz w Kluczach.</p>
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+  <form method="post" action="/oauth/autoryzuj" class="consent">
+    {% for k in ('client_id', 'redirect_uri', 'code_challenge', 'code_challenge_method', 'state', 'response_type', 'resource', 'scope') %}
+    <input type="hidden" name="{{ k }}" value="{{ qp.get(k, '') }}">{% endfor %}
+    <button name="decyzja" value="tak">Zezwól</button>
+    <button name="decyzja" value="nie" class="ghost">Odmów</button>
+  </form>
+</div>
+{% endblock %}

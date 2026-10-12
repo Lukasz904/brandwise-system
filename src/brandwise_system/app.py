@@ -6,6 +6,7 @@ import asyncio
 from datetime import date
 from itertools import groupby
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -14,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
-from . import auth, finance_web
+from . import auth, finance_web, mcp
 from .config import Config
 from .db import DB
 from .finance import Finance, month_label, zl
@@ -61,7 +62,9 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
     "Cache-Control": "no-store",
 }
-PUBLIC_PREFIXES = ("/static/", "/r/", "/api/widget", "/logowanie", "/zaproszenie/", "/auth/logowanie", "/auth/rejestracja", "/zdrowie")
+# wywołania serwer–serwer od Claude: bez ciasteczek (Bearer / PKCE), więc bez sprawdzania Origin
+NO_ORIGIN_CHECK = ("/mcp", "/oauth/token", "/oauth/rejestracja")
+PUBLIC_PREFIXES = ("/static/", "/r/", "/api/widget", "/.well-known/", "/mcp", "/oauth/token", "/oauth/rejestracja", "/logowanie", "/zaproszenie/", "/auth/logowanie", "/auth/rejestracja", "/zdrowie")
 
 
 class Guard(BaseHTTPMiddleware):
@@ -69,12 +72,15 @@ class Guard(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         cfg: Config = request.app.state.cfg
-        if request.method not in ("GET", "HEAD") and request.headers.get("origin") != cfg.origin:
+        if (request.method not in ("GET", "HEAD") and request.url.path not in NO_ORIGIN_CHECK
+                and request.headers.get("origin") != cfg.origin):
             return JSONResponse({"detail": "Niepoprawne źródło żądania."}, status_code=403)
         path = request.url.path
         if not path.startswith(PUBLIC_PREFIXES) and auth.current_user(request) is None:
             if request.method in ("GET", "HEAD"):
-                return RedirectResponse("/logowanie", status_code=303)
+                nxt = path + ("?" + request.url.query if request.url.query else "")
+                return RedirectResponse("/logowanie" + (f"?{urlencode({'dalej': nxt})}" if path != "/" else ""),
+                                        status_code=303)
             return JSONResponse({"detail": "Zaloguj się."}, status_code=401)
         resp = await call_next(request)
         for k, v in SECURITY_HEADERS.items():
@@ -92,6 +98,7 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
     app.state.db = DB(cfg.db_path)
+    mcp.init(app.state.db)
     app.state.fakturownia = fakturownia or Fakturownia(cfg.fakturownia_domain, cfg.fakturownia_token,
                                                        cfg.fakturownia_kinds, cfg.fakturownia_cache_seconds,
                                                        hidden_buyers=cfg.fakturownia_hidden)
@@ -101,6 +108,7 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     app.add_middleware(Guard)
     app.include_router(auth.router)
     app.include_router(finance_web.router)
+    app.include_router(mcp.router)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
     page = page_response
@@ -112,7 +120,7 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     @app.get("/logowanie", response_class=HTMLResponse)
     async def login_page(request: Request):
         if auth.current_user(request):
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse(auth.safe_next(request.query_params.get("dalej", "")), status_code=303)
         return page(request, "logowanie.html")
 
     @app.get("/zaproszenie/{token}", response_class=HTMLResponse)
@@ -151,7 +159,7 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     async def keys(request: Request):
         user = auth.current_user(request)
         return page(request, "klucze.html", creds=app.state.db.credentials_of(user["id"]),
-                    tokens=app.state.db.api_tokens(), new_token="")
+                    tokens=app.state.db.api_tokens(), new_token="", grants=mcp.grants(app.state.db))
 
     @app.post("/klucze/widget", response_class=HTMLResponse)
     async def widget_token(request: Request):
@@ -160,13 +168,20 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
         token = app.state.db.create_api_token(form.get("name", "iPhone"))
         app.state.db.log("widget_token_created", user["email"], form.get("name", "")[:60])
         return page(request, "klucze.html", creds=app.state.db.credentials_of(user["id"]),
-                    tokens=app.state.db.api_tokens(), new_token=token)
+                    tokens=app.state.db.api_tokens(), new_token=token, grants=mcp.grants(app.state.db))
 
     @app.post("/klucze/widget/{tid}/usun")
     async def widget_token_revoke(request: Request, tid: int):
         user = auth.current_user(request)
         app.state.db.revoke_api_token(tid)
         app.state.db.log("widget_token_revoked", user["email"], str(tid))
+        return RedirectResponse("/klucze", status_code=303)
+
+    @app.post("/klucze/aplikacje/{gid}/odlacz")
+    async def grant_revoke(request: Request, gid: int):
+        user = auth.current_user(request)
+        mcp.revoke_grant(app.state.db, gid)
+        app.state.db.log("mcp_revoked", user["email"], str(gid))
         return RedirectResponse("/klucze", status_code=303)
 
     @app.get("/api/widget")
