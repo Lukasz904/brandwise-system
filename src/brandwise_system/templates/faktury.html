@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block title %}Faktury{% endblock %}
+{% macro inv_table(items, overdue=False) %}
+<table><thead><tr><th>Numer</th><th>Nabywca</th><th>Termin</th><th class="num">Do zapłaty</th><th></th></tr></thead><tbody>
+{% for i in items %}
+<tr class="{{ 'alert' if overdue }}">
+  <td><a href="{{ fk.invoice_url(i) }}" target="_blank" rel="noopener">{{ i.number }}</a></td>
+  <td>{{ i.buyer }}</td>
+  <td>{{ i.due.strftime('%d.%m.%Y') if i.due else '—' }}{% if overdue %}<small>{{ i.overdue_days(today) }} dni po terminie</small>{% endif %}</td>
+  <td class="num">{{ i.open_amount|pln if i.currency == 'PLN' else '%.2f %s'|format(i.open_amount, i.currency) }}{% if i.paid %}<small>wpłacono {{ i.paid|pln }}</small>{% endif %}</td>
+  <td class="act"><form method="post" action="/faktury/{{ i.id }}/oplacona" data-confirm="Oznaczyć {{ i.number }} jako opłaconą w Fakturowni?"><button class="small">Opłacona</button></form></td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% endmacro %}
+{% block content %}
+<header class="top"><h1>Faktury nieopłacone</h1><a href="/faktury?odswiez=1">Odśwież z Fakturowni</a></header>
+{% if msg %}<p class="ok">Oznaczono jako opłaconą.</p>{% endif %}
+{% if error %}<p class="err">Brak danych z Fakturowni: {{ error }}</p>{% else %}
+<div class="stats wide">
+  <div class="stat"><b>{{ o.total_open|pln }}</b><span>nieopłacone · {{ o.unpaid|length }} faktur, brutto</span></div>
+  <div class="stat {{ 'alert' if o.overdue else 'ok' }}"><b>{{ o.total_overdue|pln }}</b><span>po terminie · {{ o.overdue|length }} faktur</span></div>
+</div>
+{% if o.other_currency %}<p class="hint">Sumy tylko w PLN. Są też nieopłacone faktury w: {{ o.other_currency|join(', ') }}.</p>{% endif %}
+<h2>Po terminie</h2>
+{% if o.overdue %}{{ inv_table(o.overdue, True) }}{% else %}<p class="hint">Brak.</p>{% endif %}
+<h2>Najbliższe terminy</h2>
+{% if o.upcoming %}{{ inv_table(o.upcoming) }}{% else %}<p class="hint">Brak.</p>{% endif %}
+{% if o.no_due %}<h2>Bez terminu płatności</h2>{{ inv_table(o.no_due) }}{% endif %}
+{% endif %}
+{% endblock %}

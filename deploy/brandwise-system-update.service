@@ -1,0 +1,10 @@
+[Unit]
+Description=brandwise-system: pobranie zatwierdzonych zmian z main
+
+[Service]
+Type=oneshot
+User=brandwise
+WorkingDirectory=/opt/brandwise-system
+ExecStart=/opt/brandwise-system/deploy/update.sh
+# krok uprzywilejowany (root): restart tylko gdy update.sh zostawił znacznik
+ExecStartPost=+/bin/sh -c 'if [ -f /opt/brandwise-system/data/.updated ]; then rm -f /opt/brandwise-system/data/.updated; install -m 0644 /opt/brandwise-system/deploy/brandwise-system.service /etc/systemd/system/; install -m 0644 /opt/brandwise-system/deploy/brandwise-system.caddy /etc/caddy/sites/; systemctl daemon-reload; systemctl restart brandwise-system; caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 && systemctl reload caddy; fi'

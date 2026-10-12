@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Klucz dostępu{% endblock %}
+{% block content %}
+<div class="login">
+  <img src="/static/logo.svg" alt="brandwise" class="logo">
+  {% if invite %}
+  <h1>Utwórz klucz dostępu</h1>
+  <p class="hint">Dla <b>{{ invite.email }}</b>. Klucz zapisze się w pęku kluczy iCloud i będzie działał na Macu oraz iPhonie.</p>
+  <input id="label" placeholder="Nazwa klucza, np. MacBook" maxlength="60">
+  <button data-passkey-register data-invite="{{ token }}">Utwórz klucz</button>
+  <p class="err" id="msg" role="alert"></p>
+  {% else %}
+  <h1>Zaproszenie nieważne</h1>
+  <p class="hint">Link wygasł albo został już użyty. Nowy wygenerujesz na serwerze komendą <code>zaproszenie</code>.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+[Unit]
+Description=brandwise-system (dashboard firmowy; za Caddy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=brandwise
+Group=brandwise
+WorkingDirectory=/opt/brandwise-system
+EnvironmentFile=/opt/brandwise-system/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/brandwise-system/.venv/bin/python -m brandwise_system serve
+Restart=always
+RestartSec=3
+
+# Osobny użytkownik: Marek (ubuntu) nie ma dostępu do tokenu Fakturowni ani bazy sesji.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/brandwise-system/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=384M
+
+[Install]
+WantedBy=multi-user.target

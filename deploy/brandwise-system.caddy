@@ -1,0 +1,8 @@
+# System firmowy Brandwise (instalowany do /etc/caddy/sites/ przez deploy/install.sh)
+panel.brandwise.pl {
+	request_body {
+		max_size 2MB
+	}
+	header -Server
+	reverse_proxy 127.0.0.1:8790
+}

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brandwise-system"
+version = "0.1.0"
+description = "System firmowy Brandwise: dashboard, faktury, finanse, panel Marka"
+requires-python = ">=3.12"
+dependencies = ["fastapi", "uvicorn", "Jinja2", "webauthn", "httpx", "python-multipart"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+brandwise_system = ["templates/*.html", "static/*", "static/fonts/*"]

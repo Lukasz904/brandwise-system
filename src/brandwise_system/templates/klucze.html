@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Klucze dostępu{% endblock %}
+{% block content %}
+<header class="top"><h1>Klucze dostępu</h1></header>
+<table><thead><tr><th>Nazwa</th><th>Utworzony</th><th>Ostatnio użyty</th><th></th></tr></thead><tbody>
+{% for c in creds %}
+<tr><td>{{ c.label }}</td><td>{{ c.created_at[:10] }}</td><td>{{ (c.last_used_at or '—')[:10] }}</td>
+<td class="act">{% if creds|length > 1 %}<form method="post" action="/klucze/{{ c.id|b64 }}/usun" data-confirm="Usunąć klucz „{{ c.label }}”?"><button class="small ghost">Usuń</button></form>{% endif %}</td></tr>
+{% endfor %}
+</tbody></table>
+<h2>Dodaj klucz</h2>
+<p class="hint">Klucz z pęku kluczy iCloud działa już na Macu i iPhonie. Drugi klucz przyda się np. na komputerze bez iCloud albo jako zapas (klucz sprzętowy).</p>
+<div class="addkey"><input id="label" placeholder="Nazwa, np. YubiKey" maxlength="60"><button data-passkey-register>Dodaj klucz</button></div>
+<p class="err" id="msg" role="alert"></p>
+{% endblock %}

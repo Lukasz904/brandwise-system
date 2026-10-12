@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Logowanie{% endblock %}
+{% block content %}
+<div class="login">
+  <img src="/static/logo.svg" alt="brandwise" class="logo">
+  <h1>System firmowy</h1>
+  <p class="hint">Zaloguj się kluczem dostępu – Touch ID na Macu albo Face ID na iPhonie.</p>
+  <button id="login" data-passkey-login>Zaloguj kluczem dostępu</button>
+  <p class="err" id="msg" role="alert"></p>
+</div>
+{% endblock %}

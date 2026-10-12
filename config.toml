@@ -1,0 +1,37 @@
+# Ustawienia jawne (w repo). Sekrety wyłącznie w .env.
+host = "panel.brandwise.pl"          # adres systemu; musi się zgadzać z adresem w przeglądarce (passkeys)
+data_dir = "data"
+users = ["lukasz@brandwise.pl"]      # kto może dostać zaproszenie do utworzenia klucza
+session_days = 30
+
+[marek]
+summary_url = "http://127.0.0.1:8780/_summary"   # panel Marka na tym samym serwerze
+host = "panel.brandwise.cloud"
+
+[fakturownia]
+domain = ""                          # TODO: <ta-część>.fakturownia.pl
+kinds = ["vat", "advance", "final"]  # faktury VAT, zaliczkowe, końcowe
+cache_seconds = 300
+
+[finanse]
+url = "https://panel.brandwise.pl/"  # obecny panel na mydevil – do czasu migracji
+
+[[links."Strony firmowe"]]
+name = "brandwise.pl"
+url = "https://brandwise.pl/"
+
+[[links."Serwery"]]
+name = "Panel mydevil"
+url = "https://panel.mydevil.net/"
+
+[[links."Narzędzia"]]
+name = "Fakturownia"
+url = "https://fakturownia.pl/"
+
+[[links."Narzędzia"]]
+name = "corgi.pro – opieka nad stronami"
+url = "https://corgi.pro/"
+
+[[links."Narzędzia"]]
+name = "Figma"
+url = "https://www.figma.com/files/"

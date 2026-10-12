@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>{% block title %}Brandwise{% endblock %} · Brandwise</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="/static/logo.svg">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+{% if user %}
+<nav>
+  <a href="/" class="brand"><img src="/static/logo.svg" alt="brandwise"></a>
+  <a href="/" class="{{ 'on' if request.url.path == '/' }}">Dashboard</a>
+  <a href="/faktury" class="{{ 'on' if request.url.path.startswith('/faktury') }}">Faktury</a>
+  <span class="sp"></span>
+  <a href="/klucze" class="{{ 'on' if request.url.path.startswith('/klucze') }}">Klucze dostępu</a>
+  <form method="post" action="/wyloguj"><button class="link">Wyloguj</button></form>
+</nav>
+{% endif %}
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

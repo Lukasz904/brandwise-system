@@ -1,0 +1,1 @@
+"""System firmowy Brandwise."""
