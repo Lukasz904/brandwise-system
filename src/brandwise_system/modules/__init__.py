@@ -29,6 +29,7 @@ class Tile:
     rows_title: str = ""
     href: str = ""                                    # „otwórz moduł”
     href_label: str = "Otwórz"
+    groups: list[tuple[str, list[Row], str]] = field(default_factory=list)   # (tytuł, wiersze, suma) – szeroki kafelek
 
 
 class Module:

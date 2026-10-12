@@ -2,11 +2,18 @@
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>{% block title %}Brandwise{% endblock %} · Brandwise</title>
 <link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="/static/logo.svg">
+<link rel="icon" href="/static/icon-192.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brandwise">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
 <script src="/static/app.js" defer></script>
 </head>
 <body>
@@ -16,11 +23,13 @@
   <a href="/" class="{{ 'on' if request.url.path == '/' }}">Dashboard</a>
   {% set p = request.url.path %}
   <a href="/zlecenia" class="{{ 'on' if p.startswith('/zlecenia') }}">Zlecenia</a>
+  <a href="/prospekty" class="{{ 'on' if p.startswith('/prospekty') }}">Prospekty</a>
   <a href="/finanse" class="{{ 'on' if p.startswith('/finanse') }}">Finanse</a>
   <a href="/faktury" class="{{ 'on' if p.startswith('/faktury') }}">Faktury</a>
   <a href="/koszty" class="{{ 'on' if p.startswith('/koszty') }}">Koszty</a>
   <a href="/klienci" class="{{ 'on' if p.startswith('/klienci') }}">Klienci</a>
   <a href="/raporty" class="{{ 'on' if p.startswith('/raporty') }}">Raporty</a>
+  <a href="https://{{ request.app.state.cfg.marek_host }}/">Marek</a>
   <span class="sp"></span>
   <a href="/ustawienia" class="{{ 'on' if p.startswith('/ustawienia') }}">Ustawienia</a>
   <a href="/klucze" class="{{ 'on' if p.startswith('/klucze') }}">Klucze</a>

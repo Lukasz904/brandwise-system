@@ -149,6 +149,7 @@ class Filters:
     hashtag: str = ""
     priced_only: bool = False
     q: str = ""
+    kind: str = "zlecenie"                     # zlecenie | prospekt (nie trafia do raportów ani query)
 
     @classmethod
     def from_query(cls, qp) -> "Filters":
@@ -188,7 +189,7 @@ class Filters:
         return not self.to_query()
 
     def sql(self) -> tuple[str, list]:
-        where, args = ["o.deleted_at IS NULL"], []
+        where, args = ["o.deleted_at IS NULL", "o.kind = ?"], [self.kind]
         if self.day_from:
             where.append("o.day >= ?"); args.append(self.day_from)
         if self.day_to:
@@ -211,7 +212,8 @@ class Filters:
 class Finance:
     MIGRATIONS = {
         "fin_clients": {"fk_client_id": "INTEGER", "payment_days": "INTEGER"},
-        "fin_orders": {"fk_invoice_id": "INTEGER", "fk_invoice_number": "TEXT"},
+        "fin_orders": {"fk_invoice_id": "INTEGER", "fk_invoice_number": "TEXT",
+                       "kind": "TEXT NOT NULL DEFAULT 'zlecenie'"},          # zlecenie | prospekt
     }
 
     def __init__(self, db):
@@ -306,10 +308,11 @@ class Finance:
         ts = now_iso()
         with self.db.lock:
             if oid is None:
-                cols = list(row) + ["created_at", "updated_at"]
+                cols = list(row) + ["kind", "created_at", "updated_at"]
+                kind = data.get("kind", "zlecenie") if data.get("kind") in ("zlecenie", "prospekt") else "zlecenie"
                 cur = self.db.conn.execute(
                     f"INSERT INTO fin_orders({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
-                    [*row.values(), ts, ts])
+                    [*row.values(), kind, ts, ts])
                 return cur.lastrowid
             sets = ",".join(f"{k}=?" for k in row) + ",updated_at=?"
             self.db.conn.execute(f"UPDATE fin_orders SET {sets} WHERE id=?", [*row.values(), ts, oid])
@@ -346,6 +349,12 @@ class Finance:
     def mark_invoiced(self, ids: list[int], fk_invoice_id: int, number: str) -> None:
         self.db.q(f"UPDATE fin_orders SET invoice_status=?, fk_invoice_id=?, fk_invoice_number=?, updated_at=? "
                   f"WHERE id IN ({','.join('?' * len(ids))})", [INVOICED, fk_invoice_id, number, now_iso(), *ids])
+
+    def accept_prospect(self, oid: int, day: str) -> None:
+        """Prospekt → zlecenie (po potwierdzeniu realizacji), z datą zlecenia."""
+        day = datetime.strptime(day, "%Y-%m-%d").date().isoformat()
+        self.db.q("UPDATE fin_orders SET kind='zlecenie', day=?, updated_at=? WHERE id=? AND kind='prospekt' "
+                  "AND deleted_at IS NULL", (day, now_iso(), oid))
 
     def delete_order(self, oid: int) -> None:
         self.db.q("UPDATE fin_orders SET deleted_at=? WHERE id=?", (now_iso(), oid))
@@ -384,7 +393,7 @@ class Finance:
                         "COALESCE(SUM(CASE WHEN invoice_status=? THEN 1 END),0) inv_n, "
                         "COALESCE(SUM(CASE WHEN invoice_status=? THEN total END),0) todo_t, "
                         "COALESCE(SUM(CASE WHEN invoice_status=? THEN 1 END),0) todo_n "
-                        "FROM fin_orders WHERE deleted_at IS NULL AND day>=? AND day<?",
+                        "FROM fin_orders WHERE deleted_at IS NULL AND kind='zlecenie' AND day>=? AND day<?",
                         (INVOICED, INVOICED, TO_INVOICE, TO_INVOICE, a, b))
         fixed = self.db.one("SELECT COALESCE(SUM(value),0) v FROM fin_costs WHERE month=?", (month,))["v"]
         revenue = r["t"] - r["c"]                     # przychód po kosztach zleceń
@@ -399,13 +408,13 @@ class Finance:
     def by_client(self, month: str) -> list[tuple[str, int]]:
         a, b = month_bounds(month)
         rows = self.db.q("SELECT c.name, SUM(o.total - o.costs_total) v FROM fin_orders o JOIN fin_clients c "
-                         "ON c.id=o.client_id WHERE o.deleted_at IS NULL AND o.day>=? AND o.day<? "
+                         "ON c.id=o.client_id WHERE o.deleted_at IS NULL AND o.kind='zlecenie' AND o.day>=? AND o.day<? "
                          "GROUP BY c.id ORDER BY v DESC", (a, b))
         return [(r["name"], r["v"]) for r in rows]
 
     def history(self, months: int = 24) -> list[dict]:
         rev = {r["m"]: r["rev"] for r in self.db.q("SELECT substr(day,1,7) m, SUM(total-costs_total) rev FROM fin_orders "
-                                                  "WHERE deleted_at IS NULL GROUP BY m")}
+                                                  "WHERE deleted_at IS NULL AND kind='zlecenie' GROUP BY m")}
         fixed = {r["month"]: r["v"] for r in self.db.q("SELECT month, SUM(value) v FROM fin_costs GROUP BY month")}
         keys = sorted(set(rev) | set(fixed), reverse=True)[:months]
         return [{"month": m, "label": month_label(m), "revenue": rev.get(m, 0), "fixed_costs": fixed.get(m, 0),
@@ -414,7 +423,7 @@ class Finance:
     def year_table(self) -> dict[str, list[int]]:
         out: dict[str, list[int]] = {}
         for r in self.db.q("SELECT substr(day,1,4) y, CAST(substr(day,6,2) AS INT) m, SUM(total-costs_total) v "
-                           "FROM fin_orders WHERE deleted_at IS NULL GROUP BY y, m ORDER BY y DESC"):
+                           "FROM fin_orders WHERE deleted_at IS NULL AND kind='zlecenie' GROUP BY y, m ORDER BY y DESC"):
             out.setdefault(r["y"], [0] * 12)[r["m"] - 1] = r["v"]
         return out
 

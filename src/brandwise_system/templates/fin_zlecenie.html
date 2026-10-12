@@ -1,8 +1,9 @@
-{% extends "base.html" %}{% block title %}{{ 'Zlecenie' if o.id else 'Nowe zlecenie' }}{% endblock %}
+{% extends "base.html" %}{% block title %}{{ K.one if o.id else K.new }}{% endblock %}
 {% block content %}
-<header class="top"><h1>{% if duplicate %}Kopia zlecenia{% elif o.id %}Zlecenie{% else %}Nowe zlecenie{% endif %}</h1><a href="{{ wroc }}">← lista</a></header>
+<header class="top"><h1>{% if duplicate %}Kopia: {{ K.one|lower }}{% elif o.id %}{{ K.one }}{% else %}{{ K.new }}{% endif %}</h1><a href="{{ wroc }}">← lista</a></header>
 {% if error %}<p class="err">{{ error }}</p>{% endif %}
-<form method="post" action="{{ '/zlecenia/' ~ o.id if o.id else '/zlecenia' }}" class="card form">
+{% if request.query_params.get('ok') == 'przeniesiono' %}<p class="ok">Prospekt przeniesiony do zleceń.</p>{% endif %}
+<form method="post" action="{{ K.base ~ '/' ~ o.id if o.id else K.base }}" class="card form">
   <input type="hidden" name="wroc" value="{{ wroc }}">
   <div class="grid">
     <label>Data<input type="date" name="day" value="{{ o.day }}" required></label>
@@ -24,11 +25,17 @@
     <div class="costrow"><input name="koszt_nazwa" placeholder="np. druk, podwykonawca"><input name="koszt_kwota" inputmode="decimal" placeholder="0,00"></div>
   </div>
   <p><button type="button" class="ghost small" data-add-cost>+ koszt</button></p>
-  <div class="actions"><button>Zapisz</button>{% if o.id %} <a href="/zlecenia/{{ o.id }}/duplikuj">Duplikuj</a>{% endif %}</div>
+  <div class="actions"><button>Zapisz</button>{% if o.id %} <a href="{{ K.base }}/{{ o.id }}/duplikuj">Duplikuj</a>{% endif %}</div>
 </form>
+{% if o.id and K.kind == 'prospekt' %}
+<form method="post" action="/prospekty/{{ o.id }}/do-zlecen" class="card form accept" data-confirm="Przenieść „{{ o.title }}” do zleceń? Realizacja potwierdzona?">
+  <h2>Klient potwierdził realizację?</h2>
+  <div class="inline"><label>Data zlecenia<input type="date" name="day" value="{{ today }}" required></label><button>Dodaj do zleceń</button></div>
+</form>
+{% endif %}
 {% if o.id %}
-<form method="post" action="/zlecenia/{{ o.id }}/usun" data-confirm="Usunąć zlecenie „{{ o.title }}”?" class="danger">
-  <input type="hidden" name="wroc" value="{{ wroc }}"><button class="ghost small">Usuń zlecenie</button>
+<form method="post" action="{{ K.base }}/{{ o.id }}/usun" data-confirm="Usunąć „{{ o.title }}”?" class="danger">
+  <input type="hidden" name="wroc" value="{{ wroc }}"><button class="ghost small">Usuń</button>
 </form>
 {% endif %}
 {% endblock %}

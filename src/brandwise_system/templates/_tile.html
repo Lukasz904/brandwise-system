@@ -1,0 +1,24 @@
+{% macro tile(t, wide=False) -%}
+<article class="tile{{ ' broken' if not t.ok }}{{ ' wide' if wide }}">
+  <header><h2>{{ t.title }}</h2>{% if t.href %}<a href="{{ t.href }}">{{ t.href_label }} →</a>{% endif %}</header>
+  {% if not t.ok %}
+    <p class="err">Brak danych: {{ t.error }}</p>
+  {% else %}
+    {% if t.stats %}<div class="stats{{ ' row' if wide }}">{% for s in t.stats %}
+      <div class="stat {{ s.tone }}" title="{{ s.hint }}"><b>{{ s.value }}</b><span>{{ s.label }}</span>{% if s.hint %}<small>{{ s.hint }}</small>{% endif %}</div>
+    {% endfor %}</div>{% endif %}
+    {% if wide and t.groups %}
+      <div class="groups">{% for title, rows, total in t.groups %}<div>
+        <h3>{{ title }}{% if rows %} · {{ total }}{% endif %}</h3>
+        {% if rows %}<ul class="rows">{% for r in rows %}<li class="{{ r.tone }}"><a href="{{ r.href }}"><span class="l">{{ r.label }}<small>{{ r.hint }}</small></span><span class="v">{{ r.value }}</span></a></li>{% endfor %}</ul>
+        {% else %}<p class="hint">Brak.</p>{% endif %}
+      </div>{% endfor %}</div>
+    {% else %}
+      {% if t.rows_title and t.rows %}<h3>{{ t.rows_title }}</h3>{% endif %}
+      {% if t.rows %}<ul class="rows">{% for r in t.rows %}
+        <li class="{{ r.tone }}">{% if r.href %}<a href="{{ r.href }}">{% endif %}<span class="l">{{ r.label }}{% if r.hint %}<small>{{ r.hint }}</small>{% endif %}</span><span class="v">{{ r.value }}</span>{% if r.href %}</a>{% endif %}</li>
+      {% endfor %}</ul>{% elif t.rows_title %}<p class="hint">Nic do zrobienia.</p>{% endif %}
+    {% endif %}
+  {% endif %}
+</article>
+{%- endmacro %}

@@ -49,7 +49,7 @@ def test_dashboard_tiles_and_failure_isolated(make_client):
     assert "Klient 1" in html and "5 dni po terminie" in html
     assert "2 460,00 zł" in html                              # suma nieopłaconych
     assert "Finanse ·" in html and "do zafakturowania" in html
-    assert 'href="https://brandwise.pl/"' in html
+    assert 'href="https://brandwise.pl/"' not in html            # linki zniknęły z dashboardu
     assert r.headers["content-security-policy"].startswith("default-src 'none'")
 
 
