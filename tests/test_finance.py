@@ -341,6 +341,8 @@ def test_prospects_separate_and_accept(make_client):
     assert F.totals(Filters())["n"] == 0                                  # nie liczy się do zleceń
     assert F.month_summary("2026-10")["sales"] == 0                        # ani do finansów
     assert "Kampania 2027" in c.get("/prospekty").text and "Kampania 2027" not in c.get("/zlecenia?wszystkie=1").text
+    html = c.get("/prospekty?status=Akceptacja").text
+    assert 'data-menu' in html and 'data-toggle="filtry"' in html and "Pokaż filtry (1)" in html
     assert "Kampania 2027" in c.get("/").text and "50 000,00 zł" in c.get("/").text   # kafelek prospektów
     assert c.get(f"/zlecenia/{pid}").status_code == 404                   # prospekt nie jest zleceniem
     r = c.get(f"/zlecenia/faktura?id={pid}")

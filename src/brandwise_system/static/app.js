@@ -103,6 +103,20 @@ document.addEventListener("DOMContentLoaded", () => {
     row.querySelectorAll("input").forEach((i) => (i.value = ""));
     box.appendChild(row);
   });
+  const burger = document.querySelector("[data-menu]");
+  if (burger) burger.addEventListener("click", () => {
+    const open = burger.closest("nav").classList.toggle("open");
+    burger.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.querySelectorAll("[data-toggle]").forEach((b) => {
+    const label = b.textContent;
+    b.addEventListener("click", () => {
+      let open = false;
+      document.querySelectorAll(`[data-fold="${b.dataset.toggle}"]`).forEach((el) => (open = el.classList.toggle("open")));
+      b.setAttribute("aria-expanded", open ? "true" : "false");
+      b.textContent = open ? (b.dataset.labelOpen || label) : label;
+    });
+  });
   document.addEventListener("click", (ev) => {
     document.querySelectorAll("details.dd[open]").forEach((d) => { if (!d.contains(ev.target)) d.open = false; });
   });
