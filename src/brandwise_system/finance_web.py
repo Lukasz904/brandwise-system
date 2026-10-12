@@ -83,26 +83,35 @@ def log(request: Request, event: str, detail: str = "") -> None:
     request.app.state.db.log(event, u["email"] if u else None, detail)
 
 
-# ---------- zlecenia ----------
-@router.get("/zlecenia", response_class=HTMLResponse)
-async def orders_list(request: Request):
+# ---------- zlecenia i prospekty (ta sama struktura, inna „szuflada”) ----------
+KINDS = {
+    "zlecenie": {"kind": "zlecenie", "base": "/zlecenia", "title": "Zlecenia", "one": "Zlecenie", "new": "Nowe zlecenie",
+                 "of": "zleceń"},
+    "prospekt": {"kind": "prospekt", "base": "/prospekty", "title": "Prospekty", "one": "Prospekt",
+                 "new": "Nowy prospekt", "of": "prospektów"},
+}
+
+
+def _list(request: Request, K: dict):
     f = Filters.from_query(request.query_params)
+    f.kind = K["kind"]
     preset = request.query_params.get("okres", "")
     if preset in ("biezacy", "poprzedni"):
         m = this_month() if preset == "biezacy" else prev_month(this_month())
         f.day_from, f.day_to = f"{m}-01", month_last_day(m)
-    elif f.empty and "wszystkie" not in request.query_params:
+    elif f.empty and "wszystkie" not in request.query_params and K["kind"] == "zlecenie":
         m = this_month()
         f.day_from, f.day_to = f"{m}-01", month_last_day(m)
         preset = "biezacy"
     F = fin(request)
     limit = 2000
-    return page(request, "fin_zlecenia.html", f=f, preset=preset, orders=F.orders(f, limit), totals=F.totals(f), limit=limit,
-                clients=filter_choices(F), statuses=F.get_list("status"), inv_statuses=F.get_list("invoice_status"),
-                query=urlencode(f.to_query(), doseq=True), msg=request.query_params.get("ok", ""))
+    return page(request, "fin_zlecenia.html", K=K, f=f, preset=preset, orders=F.orders(f, limit), totals=F.totals(f),
+                limit=limit, clients=filter_choices(F), statuses=F.get_list("status"),
+                inv_statuses=F.get_list("invoice_status"), query=urlencode(f.to_query(), doseq=True),
+                msg=request.query_params.get("ok", ""))
 
 
-def order_form(request: Request, order=None, duplicate=False):
+def order_form(request: Request, K: dict, order=None, duplicate=False):
     F = fin(request)
     data = dict(order) if order else {"day": date.today().isoformat(), "qty": 1, "costs": "[]",
                                       "status": (F.get_list("status") or [""])[0], "invoice_status": "Brak"}
@@ -110,81 +119,101 @@ def order_form(request: Request, order=None, duplicate=False):
     if duplicate:
         data["id"] = None
         data["day"] = date.today().isoformat()
-    return page(request, "fin_zlecenie.html", o=data, clients=client_choices(F, data.get("client_id"), data.get("payer_id")),
-                statuses=F.get_list("status"), inv_statuses=F.get_list("invoice_status"), duplicate=duplicate,
-                error="", wroc=safe_path(request.query_params.get("wroc")))
+    return page(request, "fin_zlecenie.html", K=K, o=data,
+                clients=client_choices(F, data.get("client_id"), data.get("payer_id")), statuses=F.get_list("status"),
+                inv_statuses=F.get_list("invoice_status"), duplicate=duplicate, error="", today=date.today().isoformat(),
+                wroc=safe_path(request.query_params.get("wroc"), K["base"]))
 
 
-@router.get("/zlecenia/nowe", response_class=HTMLResponse)
-async def order_new(request: Request):
-    return order_form(request)
-
-
-@router.get("/zlecenia/{oid:int}", response_class=HTMLResponse)
-async def order_edit(request: Request, oid: int):
+def _get(request: Request, K: dict, oid: int):
     o = fin(request).order(oid)
-    if o is None:
-        raise HTTPException(404, "Nie ma takiego zlecenia.")
-    return order_form(request, o)
+    if o is None or o["kind"] != K["kind"]:
+        raise HTTPException(404, f"Nie ma takiego wpisu w: {K['title']}.")
+    return o
 
 
-@router.get("/zlecenia/{oid:int}/duplikuj", response_class=HTMLResponse)
-async def order_duplicate(request: Request, oid: int):
-    o = fin(request).order(oid)
-    if o is None:
-        raise HTTPException(404, "Nie ma takiego zlecenia.")
-    return order_form(request, o, duplicate=True)
-
-
-async def _save(request: Request, oid: int | None):
+async def _save(request: Request, K: dict, oid: int | None):
     form = await request.form()
     F = fin(request)
     try:
         data = form_order(form)
+        data["kind"] = K["kind"]
         new_id = F.save_order(data, oid)
     except (ValueError, OverflowError) as e:
         data = {k: form.get(k, "") for k in ("hashtag", "day", "title", "status", "principal", "invoice_status")}
         data.update(id=oid, client_id=int(form.get("client_id") or 0), payer_id=int(form.get("payer_id") or 0),
-                    price=0, qty=form.get("qty") or 1,
-                    costs_list=[])
-        return page(request, "fin_zlecenie.html", o=data, clients=client_choices(F, data["client_id"], data["payer_id"]),
+                    price=0, qty=form.get("qty") or 1, costs_list=[])
+        return page(request, "fin_zlecenie.html", K=K, o=data, clients=client_choices(F, data["client_id"], data["payer_id"]),
                     statuses=F.get_list("status"), inv_statuses=F.get_list("invoice_status"), duplicate=False,
                     error=str(e) + " Popraw dane i zapisz ponownie (cena i koszty wymagają ponownego wpisania).",
-                    wroc=safe_path(form.get("wroc")))
-    log(request, "order_saved" if oid else "order_created", str(new_id))
-    return back(form.get("wroc") or "/zlecenia", "zapisano")
+                    today=date.today().isoformat(), wroc=safe_path(form.get("wroc"), K["base"]))
+    log(request, f"{K['kind']}_saved" if oid else f"{K['kind']}_created", str(new_id))
+    return back(safe_path(form.get("wroc"), K["base"]), "zapisano")
 
 
-@router.post("/zlecenia")
-async def order_create(request: Request):
-    return await _save(request, None)
+def register(K: dict) -> None:
+    base = K["base"]
+
+    async def list_(request: Request):
+        return _list(request, K)
+
+    async def new(request: Request):
+        return order_form(request, K)
+
+    async def edit(request: Request, oid: int):
+        return order_form(request, K, _get(request, K, oid))
+
+    async def duplicate(request: Request, oid: int):
+        return order_form(request, K, _get(request, K, oid), duplicate=True)
+
+    async def create(request: Request):
+        return await _save(request, K, None)
+
+    async def bulk(request: Request):
+        form = await request.form()
+        ids = [int(x) for x in form.getlist("id") if x.isdigit()]
+        try:
+            n = fin(request).bulk_update(ids, form.get("status", ""), form.get("invoice_status", ""), form.get("day", ""))
+        except ValueError as e:
+            raise HTTPException(400, "Niepoprawna data.") from e
+        log(request, f"{K['kind']}_bulk", f"{n}: {','.join(map(str, ids))[:200]}")
+        return back(safe_path(form.get("wroc"), base), f"zmieniono-{n}")
+
+    async def update(request: Request, oid: int):
+        _get(request, K, oid)
+        return await _save(request, K, oid)
+
+    async def delete(request: Request, oid: int):
+        form = await request.form()
+        _get(request, K, oid)
+        fin(request).delete_order(oid)
+        log(request, f"{K['kind']}_deleted", str(oid))
+        return back(safe_path(form.get("wroc"), base), "usunieto")
+
+    router.add_api_route(base, list_, methods=["GET"], response_class=HTMLResponse)
+    router.add_api_route(base + "/nowe", new, methods=["GET"], response_class=HTMLResponse)
+    router.add_api_route(base + "/{oid:int}", edit, methods=["GET"], response_class=HTMLResponse)
+    router.add_api_route(base + "/{oid:int}/duplikuj", duplicate, methods=["GET"], response_class=HTMLResponse)
+    router.add_api_route(base, create, methods=["POST"])
+    router.add_api_route(base + "/zbiorczo", bulk, methods=["POST"])
+    router.add_api_route(base + "/{oid:int}", update, methods=["POST"])
+    router.add_api_route(base + "/{oid:int}/usun", delete, methods=["POST"])
 
 
-@router.post("/zlecenia/zbiorczo")
-async def orders_bulk(request: Request):
+for _K in KINDS.values():
+    register(_K)
+
+
+@router.post("/prospekty/{oid:int}/do-zlecen")
+async def prospect_accept(request: Request, oid: int):
     form = await request.form()
-    ids = [int(x) for x in form.getlist("id") if x.isdigit()]
+    _get(request, KINDS["prospekt"], oid)
     try:
-        n = fin(request).bulk_update(ids, form.get("status", ""), form.get("invoice_status", ""), form.get("day", ""))
+        fin(request).accept_prospect(oid, form.get("day") or date.today().isoformat())
     except ValueError as e:
         raise HTTPException(400, "Niepoprawna data.") from e
-    log(request, "orders_bulk", f"{n}: {','.join(map(str, ids))[:200]}")
-    return back(form.get("wroc") or "/zlecenia", f"zmieniono-{n}")
-
-
-@router.post("/zlecenia/{oid:int}")
-async def order_update(request: Request, oid: int):
-    if fin(request).order(oid) is None:
-        raise HTTPException(404, "Nie ma takiego zlecenia.")
-    return await _save(request, oid)
-
-
-@router.post("/zlecenia/{oid:int}/usun")
-async def order_delete(request: Request, oid: int):
-    form = await request.form()
-    fin(request).delete_order(oid)
-    log(request, "order_deleted", str(oid))
-    return back(form.get("wroc") or "/zlecenia", "usunieto")
+    log(request, "prospect_accepted", str(oid))
+    return RedirectResponse(f"/zlecenia/{oid}?ok=przeniesiono", status_code=303)
 
 
 # ---------- klienci ----------
@@ -389,6 +418,8 @@ def _invoice_ids(params) -> list[int]:
 def _invoice_check(orders) -> str:
     if not orders:
         return "Zaznacz zlecenia do zafakturowania."
+    if any(o["kind"] != "zlecenie" for o in orders):
+        return "Prospektów nie fakturujemy – najpierw dodaj je do zleceń."
     if len({o["payer_id"] for o in orders}) > 1:
         return "Zaznaczone zlecenia mają różnych płatników – jedna faktura może iść tylko do jednego płatnika."
     done = [o for o in orders if o["fk_invoice_id"] or o["invoice_status"] == "Faktura"]

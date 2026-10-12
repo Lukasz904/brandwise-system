@@ -101,7 +101,7 @@ def test_routes_full_flow(make_client):
     html = c.get("/zlecenia").text
     assert "Ulotka" in html and "2 400,00 zł" in html
     assert "Ulotka" in c.get(f"/zlecenia/{o['id']}").text
-    assert "Kopia zlecenia" in c.get(f"/zlecenia/{o['id']}/duplikuj").text
+    assert "Kopia: zlecenie" in c.get(f"/zlecenia/{o['id']}/duplikuj").text
     # zbiorcza zmiana
     assert c.post("/zlecenia/zbiorczo", headers=H, data={"id": [o["id"]], "invoice_status": "Faktura"}).status_code == 303
     assert F.order(o["id"])["invoice_status"] == "Faktura"
@@ -327,3 +327,26 @@ def test_presets_hidden_buyers_and_cost_copy(make_client):
     assert "Skopiuj z" in c.get(f"/koszty?m={month}").text
     c.post("/koszty/kopiuj", headers=H, data={"src": prev, "dst": month, "id": [ids[0]]})
     assert [r["name"] for r in F.costs(month)] == ["Biuro"]
+
+
+def test_prospects_separate_and_accept(make_client):
+    c, app = make_client()
+    F = app.state.finance
+    cid = F.add_client("Allianz")
+    login(c, app)
+    r = c.post("/prospekty", headers=H, data={"day": "2026-10-01", "title": "Kampania 2027", "client_id": cid,
+                                             "price": "50 000", "qty": "1", "invoice_status": "Brak"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/prospekty")
+    pid = F.orders(Filters(kind="prospekt"))[0]["id"]
+    assert F.totals(Filters())["n"] == 0                                  # nie liczy się do zleceń
+    assert F.month_summary("2026-10")["sales"] == 0                        # ani do finansów
+    assert "Kampania 2027" in c.get("/prospekty").text and "Kampania 2027" not in c.get("/zlecenia?wszystkie=1").text
+    assert "Kampania 2027" in c.get("/").text and "50 000,00 zł" in c.get("/").text   # kafelek prospektów
+    assert c.get(f"/zlecenia/{pid}").status_code == 404                   # prospekt nie jest zleceniem
+    r = c.get(f"/zlecenia/faktura?id={pid}")
+    assert "blad=" in r.headers["location"]                               # prospektów nie fakturujemy
+    r = c.post(f"/prospekty/{pid}/do-zlecen", headers=H, data={"day": "2026-10-12"})
+    assert r.headers["location"] == f"/zlecenia/{pid}?ok=przeniesiono"
+    assert F.order(pid)["kind"] == "zlecenie" and F.order(pid)["day"] == "2026-10-12"
+    assert F.month_summary("2026-10")["sales"] == 5000000
+    assert c.get(f"/prospekty/{pid}").status_code == 404

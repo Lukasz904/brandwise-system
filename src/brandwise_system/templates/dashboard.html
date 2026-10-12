@@ -1,31 +1,14 @@
-{% extends "base.html" %}{% block title %}Dashboard{% endblock %}
+{% extends "base.html" %}{% from "_tile.html" import tile %}{% block title %}Dashboard{% endblock %}
 {% block content %}
-<header class="top"><h1>Dashboard</h1><span class="date">{{ today.strftime('%d.%m.%Y') }}</span></header>
-<section class="tiles">
-{% for t in tiles %}
-  <article class="tile{{ ' broken' if not t.ok }}">
-    <header><h2>{{ t.title }}</h2>{% if t.href %}<a href="{{ t.href }}"{% if t.href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{{ t.href_label }} {{ '↗' if t.href.startswith('http') else '→' }}</a>{% endif %}</header>
-    {% if not t.ok %}
-      <p class="err">Brak danych: {{ t.error }}</p>
-    {% else %}
-      {% if t.stats %}<div class="stats">{% for s in t.stats %}
-        <div class="stat {{ s.tone }}"><b>{{ s.value }}</b><span>{{ s.label }}{% if s.hint %} <small>· {{ s.hint }}</small>{% endif %}</span></div>
-      {% endfor %}</div>{% endif %}
-      {% if t.rows_title and t.rows %}<h3>{{ t.rows_title }}</h3>{% endif %}
-      {% if t.rows %}<ul class="rows">{% for r in t.rows %}
-        <li class="{{ r.tone }}">{% if r.href %}<a href="{{ r.href }}"{% if r.href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{% endif %}<span class="l">{{ r.label }}{% if r.hint %}<small>{{ r.hint }}</small>{% endif %}</span><span class="v">{{ r.value }}</span>{% if r.href %}</a>{% endif %}</li>
-      {% endfor %}</ul>{% elif t.rows_title %}<p class="hint">Nic do zrobienia.</p>{% endif %}
-    {% endif %}
-  </article>
-{% endfor %}
+{% set by = {} %}{% for t in tiles %}{% set _ = by.update({t.key: t}) %}{% endfor %}
+<section class="dash">
+  <div class="col">
+    {% if by.finanse %}{{ tile(by.finanse) }}{% endif %}
+    {% if by.marek %}{{ tile(by.marek) }}{% endif %}
+  </div>
+  <div class="col wide">
+    {% if by.fakturownia %}{{ tile(by.fakturownia, wide=True) }}{% endif %}
+    {% if by.prospekty %}{{ tile(by.prospekty, wide=True) }}{% endif %}
+  </div>
 </section>
-{% if links %}
-<section class="links">
-{% for group, items in links %}
-  <div class="linkgroup"><h2>{{ group }}</h2><ul>
-  {% for l in items %}<li><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.name }}</a>{% if l.note %}<small>{{ l.note }}</small>{% endif %}</li>{% endfor %}
-  </ul></div>
-{% endfor %}
-</section>
-{% endif %}
 {% endblock %}

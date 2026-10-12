@@ -22,6 +22,7 @@ from .modules import pln
 from .modules.fakturownia import Fakturownia, FakturowniaError
 from .modules.finanse import Finanse
 from .modules.marek import Marek
+from .modules.prospekty import Prospekty
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
@@ -41,7 +42,7 @@ def page_response(request: Request, name: str, **ctx):
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-                                "font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; "
+                                "font-src 'self'; connect-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'none'; "
                                 "base-uri 'none'"),
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
@@ -80,7 +81,7 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
                                                        hidden_buyers=cfg.fakturownia_hidden)
     app.state.finance = Finance(app.state.db)
     app.state.modules = [marek or Marek(cfg.marek_summary_url, cfg.marek_host), app.state.fakturownia,
-                         Finanse(app.state.finance)]
+                         Finanse(app.state.finance), Prospekty(app.state.finance)]
     app.add_middleware(Guard)
     app.include_router(auth.router)
     app.include_router(finance_web.router)
@@ -106,8 +107,7 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
         tiles = await asyncio.gather(*(m.safe_summary() for m in app.state.modules))
-        links = [(g, list(items)) for g, items in groupby(cfg.links, key=lambda link: link.group)]
-        return page(request, "dashboard.html", tiles=tiles, links=links, today=date.today())
+        return page(request, "dashboard.html", tiles=tiles, today=date.today())
 
     @app.get("/faktury", response_class=HTMLResponse)
     async def invoices(request: Request, odswiez: int = 0):

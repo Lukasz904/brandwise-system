@@ -202,10 +202,13 @@ class Fakturownia(Module):
             Row("po terminie", pln(o["total_overdue"]), hint=f"{n_over} faktur", tone="alert" if n_over else "ok"),
         ]
         today = date.today()
-        rows = [Row(i.buyer or i.number, pln(i.open_amount), hint=f"{i.number} · {i.overdue_days(today)} dni po terminie",
-                    tone="alert", href="/faktury") for i in o["overdue"][:5]]
-        rows += [Row(i.buyer or i.number, pln(i.open_amount), hint=f"{i.number} · termin {i.due:%d.%m}",
-                     href="/faktury") for i in o["upcoming"][:3]]
+        over = [Row(i.buyer or i.number, pln(i.open_amount), hint=f"{i.number} · {i.overdue_days(today)} dni po terminie",
+                    tone="alert", href="/faktury") for i in o["overdue"][:8]]
+        soon = [Row(i.buyer or i.number, pln(i.open_amount), hint=f"{i.number} · termin {i.due:%d.%m}",
+                    href="/faktury") for i in o["upcoming"][:8]]
+        t.groups = [("Po terminie", over, pln(o["total_overdue"])), ("Najbliższe terminy", soon, pln(o["total_upcoming"]))]
         t.rows_title = "Po terminie i 3 najbliższe terminy"
-        t.rows = rows
+        t.rows = over[:5] + soon[:3]
+        if o["hidden"]:
+            t.stats.append(Row("pominięte", pln(o["total_hidden"]), hint=", ".join(sorted({i.buyer for i in o["hidden"]}))))
         return t

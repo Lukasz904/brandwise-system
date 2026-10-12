@@ -14,7 +14,7 @@
 <form method="post" action="/koszty" class="inline"><input type="hidden" name="month" value="{{ month }}"><input name="name" placeholder="Nazwa" required><input name="value" inputmode="decimal" placeholder="0,00" required><button>Dodaj</button></form>
 {% if prev_rows %}
 <h2>Skopiuj z {{ prev|month_label }}</h2>
-<form method="post" action="/koszty/kopiuj"><input type="hidden" name="src" value="{{ prev }}"><input type="hidden" name="dst" value="{{ month }}">
+<form method="post" action="/koszty/kopiuj" class="koszty-copy"><input type="hidden" name="src" value="{{ prev }}"><input type="hidden" name="dst" value="{{ month }}">
 <table><thead><tr><th class="sel"><label class="hit"><input type="checkbox" data-check-all-costs checked></label></th><th>Nazwa</th><th class="num">Kwota netto</th></tr></thead><tbody>
 {% for x in prev_rows %}<tr><td class="sel"><label class="hit"><input type="checkbox" name="id" value="{{ x.r.id }}" {{ '' if x.dup else 'checked' }}></label></td>
 <td>{{ x.r.name }}{% if x.dup %}<small>już jest w {{ label }}</small>{% endif %}</td><td class="num">{{ x.r.value|zl }}</td></tr>{% endfor %}

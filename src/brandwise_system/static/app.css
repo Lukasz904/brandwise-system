@@ -144,3 +144,33 @@ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
 border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(86,37,106,.12);padding:6px;margin-top:4px}
 .dd-menu label.check{color:var(--ink);font-weight:400;padding:6px 8px;border-radius:8px;cursor:pointer}
 .dd-menu label.check:hover{background:var(--bg)}
+
+/* dashboard: lewa kolumna (finanse, prospekty, Marek) + szeroki kafelek faktur */
+.dash{display:grid;grid-template-columns:1fr 2fr;gap:16px;align-items:start}
+.dash .col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.dash .tile{padding:16px 18px}
+.dash .tile>header h2{font-size:18px}
+.dash .stats{margin-top:10px;gap:8px}
+.dash .stat{padding:9px 12px}.dash .stat b{font-size:19px}.dash .stat span{font-size:13px}
+.dash .stats.row{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.dash h3{margin:12px 0 4px}
+.dash .rows li a,.dash .rows li>span{padding:6px 0;font-size:15px}
+.groups{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:900px){.dash{grid-template-columns:1fr}.groups{grid-template-columns:1fr}}
+.top + .dash{margin-top:0}
+form.accept{margin-top:16px}form.accept h2{margin-top:0}
+.koszty-copy .actions{margin-top:16px}
+
+/* telefon / aplikacja z ekranu początkowego */
+@media (max-width:640px){
+  nav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:16px;
+      padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
+  nav::-webkit-scrollbar{display:none}
+  nav a,nav form{flex:none}nav .sp{display:none}
+  main{padding:18px 14px calc(48px + env(safe-area-inset-bottom))}
+  h1{font-size:25px}
+  .dash .stats{grid-template-columns:1fr 1fr}
+}
+.dash .stat small{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dash .stat span{display:block}
+.dash .stats.row{grid-template-columns:repeat(4,minmax(0,1fr))}
