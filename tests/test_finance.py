@@ -1,4 +1,5 @@
 import io
+import re
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -21,6 +22,10 @@ def fin(tmp_path):
 
 def test_money_helpers():
     assert to_grosze("1 234,50") == 123450 and to_grosze("99.9") == 9990 and to_grosze("") == 0
+    assert to_grosze("1.005") == 101 and to_grosze("2.675") == 268          # w górę od połowy, bez błędów float
+    for bad in ("abc", "12 zł", "inf", "1,5,0"):
+        with pytest.raises(ValueError):
+            to_grosze(bad)
     assert zl(123450) == "1 234,50 zł" and zl(-5) == "−0,05 zł" and zl(0) == "0,00 zł"
 
 
@@ -47,6 +52,17 @@ def test_orders_filters_and_summary(fin):
     assert fin.copy_costs("2026-10", "2026-11") == 1
 
 
+def test_date_normalized_and_history_with_cost_only_month(fin):
+    c = fin.add_client("X")
+    oid = fin.save_order({"title": "t", "client_id": c, "payer_id": c, "day": "2026-10-05", "price": 100})
+    assert fin.order(oid)["day"] == "2026-10-05"
+    with pytest.raises(ValueError):
+        fin.save_order({"title": "t", "client_id": c, "payer_id": c, "day": "20261005"})
+    fin.add_cost("2026-11", "Biuro", 5000)
+    assert fin.history()[0] == {"month": "2026-11", "label": "listopad 2026", "revenue": 0, "fixed_costs": 5000,
+                                "profit": -5000}
+
+
 def test_validation(fin):
     with pytest.raises(ValueError):
         fin.save_order({"title": "", "client_id": 1, "payer_id": 1, "day": "2026-10-01"})
@@ -56,9 +72,13 @@ def test_validation(fin):
 
 
 def test_report_expiry_and_revoke(fin):
-    tok = fin.create_report(Filters(hashtag="#1"), "Raport", "2000-01-01")
+    with pytest.raises(ValueError):
+        fin.create_report(Filters(hashtag="#1"), "Wszyscy klienci")   # bez klienta – odmowa
+    with pytest.raises(ValueError):
+        fin.create_report(Filters(client_id=(1,)), "Zła data", "abc")
+    tok = fin.create_report(Filters(client_id=(1,)), "Raport", "2000-01-01")
     assert fin.report(tok) is None                              # wygasł
-    tok = fin.create_report(Filters(hashtag="#1"), "Raport")
+    tok = fin.create_report(Filters(client_id=(1,)), "Raport")
     assert fin.report(tok) is not None
     fin.revoke_report(tok)
     assert fin.report(tok) is None
@@ -89,8 +109,19 @@ def test_routes_full_flow(make_client):
     r = c.post(f"/zlecenia/{o['id']}/usun", headers=H, data={"wroc": "https://zly.example/"})
     assert r.headers["location"].startswith("/zlecenia")
     assert F.order(o["id"]) is None
-    for p in ("/finanse", "/koszty", "/klienci", "/ustawienia", "/raporty", "/"):
+    for p in ("/finanse", "/koszty", "/klienci", "/ustawienia", "/raporty", "/", "/finanse?m=zle", "/koszty?m=x"):
         assert c.get(p).status_code == 200, p
+    # zła kwota – formularz z błędem, nie 500
+    r = c.post("/zlecenia", headers=H, data={"day": "2026-10-01", "title": "T", "client_id": cid, "price": "abc"})
+    assert r.status_code == 200 and "Niepoprawna kwota" in r.text
+    # link „← lista” nie prowadzi poza system
+    o2 = F.save_order({"title": "x", "client_id": cid, "payer_id": cid, "day": "2026-10-01"})
+    assert 'href="https://evil.tld"' not in c.get(f"/zlecenia/{o2}?wroc=https://evil.tld").text
+    # zlecenie usuniętego płatnika – płatnik zostaje w formularzu
+    pid = F.add_client("Stary płatnik")
+    o3 = F.save_order({"title": "y", "client_id": cid, "payer_id": pid, "day": "2026-10-01"})
+    F.delete_client(pid)
+    assert "Stary płatnik (usunięty)" in c.get(f"/zlecenia/{o3}").text
 
 
 def test_public_report_and_xlsx(make_client):
@@ -101,6 +132,8 @@ def test_public_report_and_xlsx(make_client):
                   "price": 50000, "qty": 1, "status": "Zakończone", "invoice_status": "Faktura",
                   "costs": [["tajny koszt", 12300]]})
     login(c, app)
+    r = c.post("/raporty", headers=H, data={"filters": "{}", "title": "wszyscy"})
+    assert "blad=" in r.headers["location"] and not F.reports()     # bez klienta – brak linku
     r = c.post("/raporty", headers=H, data={"filters": '{"klient": ["%d"]}' % cid, "title": "Allianz – październik"})
     token = r.headers["location"].split("nowy=")[1]
     c.cookies.clear()                                            # klient bez logowania
@@ -109,7 +142,7 @@ def test_public_report_and_xlsx(make_client):
     assert "tajny koszt" not in html and "123,00" not in html and "Faktura" not in html
     x = c.get(f"/r/{token}/xlsx")
     ws = load_workbook(io.BytesIO(x.content)).active
-    assert ws["C2"].value == "Kartka świąteczna" and ws["I2"].value == 500.0
+    assert ws["C2"].value == "Kartka świąteczna" and ws["H2"].value == 500.0
     assert c.get("/r/zly-token").status_code == 404
     assert c.get("/raporty").status_code == 303                  # lista linków tylko po zalogowaniu
 
@@ -180,6 +213,23 @@ def test_legacy_import(fin):
         import_legacy(fin, data)                                # drugi raz bez --zastap
     import_legacy(fin, data, replace=True)
     assert fin.totals(Filters())["n"] == 3
+
+
+def test_import_robust_to_bad_rows_and_php_quirks(fin):
+    text = legacy_dump()
+    php_obj = r"INSERT INTO `settings` VALUES ('1','status','{\"0\":\"Wycena\",\"2\":\"Zako\\u0144czone\"}',NULL,NULL); "
+    text = re.sub(r"INSERT INTO `settings` VALUES .*?; ", lambda m: php_obj, text, flags=re.S)
+    text = text.replace("'Baner','Wycena','','4','100','1'", "'Baner','Wycena','','4','1 500 zł','1'")
+    data = parse_dump(text)
+    stats = import_legacy(fin, data)
+    assert stats["zlecenia"] == 2 and any("zlecenie 11: POMINIĘTE" in p for p in stats["pominiete"])
+    assert fin.get_list("status") == ["Wycena", "Zakończone"]          # obiekt JSON z PHP → wartości, nie klucze
+
+
+def test_import_refuses_when_clients_exist(fin):
+    fin.add_client("Ręcznie dodany")
+    with pytest.raises(ImportErrorPL):
+        import_legacy(fin, parse_dump(legacy_dump()))
 
 
 def test_import_rejects_garbage(fin):

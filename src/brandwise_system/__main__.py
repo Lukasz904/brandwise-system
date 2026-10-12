@@ -62,7 +62,12 @@ def main(argv: list[str] | None = None) -> int:
         from .db import DB
         from .finance import Finance, zl
         from .legacy_import import ImportErrorPL, check_totals, import_legacy, parse_dump
-        text = Path(args.plik).read_bytes().decode("utf-8", errors="replace")
+        try:
+            text = Path(args.plik).read_bytes().decode("utf-8")
+        except UnicodeDecodeError:
+            print("Import przerwany: plik nie jest w UTF-8 (polskie znaki by się zepsuły). Zrób zrzut w UTF-8.",
+                  file=sys.stderr)
+            return 2
         try:
             finance = Finance(DB(cfg.db_path))
             stats = import_legacy(finance, parse_dump(text), replace=args.zastap)

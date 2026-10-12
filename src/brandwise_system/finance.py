@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import secrets
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
@@ -71,20 +72,40 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _dec(text) -> Decimal:
+    s = str(text).replace(" ", "").replace("\u00a0", "").replace(",", ".")
+    try:
+        d = Decimal(s)
+    except InvalidOperation as e:
+        raise ValueError(f"Niepoprawna kwota: {text}") from e
+    if not d.is_finite():
+        raise ValueError(f"Niepoprawna kwota: {text}")
+    return d
+
+
 def to_grosze(text) -> int:
-    """'1 234,50' / '1234.5' / 1234.5 → 123450. Puste → 0."""
+    """'1 234,50' / '1234.5' / 1234.5 → 123450 (zaokrąglenie „w górę od połowy”). Puste → 0."""
     if text in (None, ""):
         return 0
-    if isinstance(text, (int, float)):
-        return round(float(text) * 100)
-    s = str(text).replace(" ", "").replace(" ", "").replace(",", ".")
-    return round(float(s) * 100) if s else 0
+    return int((_dec(text) * 100).quantize(Decimal("1"), ROUND_HALF_UP))
 
 
 def to_qty(text) -> float:
     if text in (None, ""):
         return 1.0
-    return float(str(text).replace(" ", "").replace(",", "."))
+    return float(_dec(text))
+
+
+def line_total(price: int, qty: float) -> int:
+    return int((Decimal(price) * Decimal(str(qty))).quantize(Decimal("1"), ROUND_HALF_UP))
+
+
+def valid_month(m: str) -> bool:
+    try:
+        datetime.strptime(m, "%Y-%m")
+        return True
+    except (ValueError, TypeError):
+        return False
 
 
 def zl(grosze: int | None) -> str:
@@ -259,19 +280,19 @@ class Finance:
             if not self.db.one("SELECT 1 FROM fin_clients WHERE id=?", (data.get(k),)):
                 raise ValueError("Wybierz klienta i płatnika.")
         try:
-            date.fromisoformat(data.get("day", ""))
-        except ValueError as e:
+            day = datetime.strptime(data.get("day", ""), "%Y-%m-%d").date().isoformat()
+        except (ValueError, TypeError) as e:
             raise ValueError("Niepoprawna data.") from e
         costs = [[n.strip(), int(v)] for n, v in data.get("costs", []) if n.strip() or v]
         row = {
             "hashtag": data.get("hashtag", "").strip(), "client_id": int(data["client_id"]),
-            "payer_id": int(data["payer_id"]), "day": data["day"], "title": data["title"].strip(),
+            "payer_id": int(data["payer_id"]), "day": day, "title": data["title"].strip(),
             "status": data.get("status", ""), "principal": data.get("principal", "").strip(),
             "price": int(data.get("price", 0)), "qty": float(data.get("qty", 1)),
             "invoice_status": data.get("invoice_status", ""),
             "costs": json.dumps(costs, ensure_ascii=False), "costs_total": sum(v for _, v in costs),
         }
-        row["total"] = round(row["price"] * row["qty"])
+        row["total"] = line_total(row["price"], row["qty"])
         ts = now_iso()
         with self.db.lock:
             if oid is None:
@@ -289,7 +310,7 @@ class Finance:
         if status: sets.append("status=?"); args.append(status)
         if invoice_status: sets.append("invoice_status=?"); args.append(invoice_status)
         if day:
-            date.fromisoformat(day); sets.append("day=?"); args.append(day)
+            day = datetime.strptime(day, "%Y-%m-%d").date().isoformat(); sets.append("day=?"); args.append(day)
         if not sets or not ids:
             return 0
         sets.append("updated_at=?"); args.append(now_iso())
@@ -354,11 +375,12 @@ class Finance:
         return [(r["name"], r["v"]) for r in rows]
 
     def history(self, months: int = 24) -> list[dict]:
-        rows = self.db.q("SELECT substr(day,1,7) m, SUM(total-costs_total) rev FROM fin_orders "
-                         "WHERE deleted_at IS NULL GROUP BY m ORDER BY m DESC LIMIT ?", (months,))
+        rev = {r["m"]: r["rev"] for r in self.db.q("SELECT substr(day,1,7) m, SUM(total-costs_total) rev FROM fin_orders "
+                                                  "WHERE deleted_at IS NULL GROUP BY m")}
         fixed = {r["month"]: r["v"] for r in self.db.q("SELECT month, SUM(value) v FROM fin_costs GROUP BY month")}
-        return [{"month": r["m"], "label": month_label(r["m"]), "revenue": r["rev"], "fixed_costs": fixed.get(r["m"], 0),
-                 "profit": r["rev"] - fixed.get(r["m"], 0)} for r in rows]
+        keys = sorted(set(rev) | set(fixed), reverse=True)[:months]
+        return [{"month": m, "label": month_label(m), "revenue": rev.get(m, 0), "fixed_costs": fixed.get(m, 0),
+                 "profit": rev.get(m, 0) - fixed.get(m, 0)} for m in keys]
 
     def year_table(self) -> dict[str, list[int]]:
         out: dict[str, list[int]] = {}
@@ -369,6 +391,10 @@ class Finance:
 
     # ---------- raporty dla klientów ----------
     def create_report(self, f: Filters, title: str = "", expires_at: str | None = None) -> str:
+        if not (f.client_id or f.payer_id):
+            raise ValueError("Raport dla klienta musi mieć wybranego klienta albo płatnika.")
+        if expires_at:
+            expires_at = datetime.strptime(expires_at, "%Y-%m-%d").date().isoformat()
         token = secrets.token_urlsafe(24)
         self.db.q("INSERT INTO fin_reports(token, title, filters, created_at, expires_at) VALUES (?,?,?,?,?)",
                   (token, title.strip(), json.dumps(f.to_query(), ensure_ascii=False), now_iso(), expires_at or None))

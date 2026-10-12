@@ -20,7 +20,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from .finance import Finance, now_iso, to_grosze, to_qty
+from .finance import Finance, line_total, now_iso, to_grosze, to_qty
 
 TZ = ZoneInfo("Europe/Warsaw")
 ESCAPES = {"0": "\0", "n": "\n", "r": "\r", "t": "\t", "Z": "\x1a", "b": "\b"}
@@ -120,20 +120,27 @@ def legacy_day(v) -> str:
 
 
 def legacy_costs(raw) -> list[list]:
+    """{nazwa: kwota} (albo lista kwot, gdy nazwy były 0, 1, …). Niepoprawne kwoty → ValueError."""
     if not raw:
         return []
     try:
         d = json.loads(raw)
     except ValueError:
         return []
-    items = d.items() if isinstance(d, dict) else d
+    if isinstance(d, dict):
+        items = d.items()
+    elif isinstance(d, list):
+        items = [(str(i), v) for i, v in enumerate(d)]
+    else:
+        return []
     return [[str(k), to_grosze(v)] for k, v in items]
 
 
 def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool = False) -> dict:
     db = finance.db
-    if db.one("SELECT 1 FROM fin_orders LIMIT 1") and not replace:
-        raise ImportErrorPL("W nowym systemie są już zlecenia. Użyj --zastap, żeby je zastąpić danymi ze zrzutu.")
+    if not replace and any(db.one(f"SELECT 1 FROM {t} LIMIT 1") for t in ("fin_orders", "fin_clients", "fin_costs")):
+        raise ImportErrorPL("W nowym systemie są już zlecenia, klienci albo koszty. Użyj --zastap, żeby zastąpić je "
+                            "danymi ze zrzutu.")
     users = {str(u["id"]): u.get("name") or u.get("email") or "" for u in data.get("users", [])}
     ts = now_iso()
     stats = {"klienci": 0, "zlecenia": 0, "koszty": 0, "pominiete": []}
@@ -160,20 +167,23 @@ def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool =
             for r in data["orders"]:
                 try:
                     day = legacy_day(r["data"])
-                except (ValueError, OverflowError):
-                    stats["pominiete"].append(f"zlecenie {r['id']}: data „{r['data']}”")
+                    costs = legacy_costs(r.get("costs_data"))
+                    costs_total = (to_grosze(r.get("costs_sum")) if r.get("costs_sum") not in (None, "")
+                                   else sum(v for _, v in costs))
+                    if costs and sum(v for _, v in costs) != costs_total:
+                        stats["pominiete"].append(f"zlecenie {r['id']}: suma kosztów różni się od listy – zostawiono sumę")
+                    price, qty = to_grosze(r.get("price")), to_qty(r.get("pcs"))
+                    total = to_grosze(r.get("sum")) if r.get("sum") not in (None, "") else line_total(price, qty)
+                    client, payer = int(r["client"]), int(r["invoice"] or r["client"])
+                except (ValueError, OverflowError, TypeError) as e:
+                    stats["pominiete"].append(f"zlecenie {r.get('id')}: POMINIĘTE ({e})")
                     continue
-                costs = legacy_costs(r.get("costs_data"))
-                costs_total = to_grosze(r.get("costs_sum")) if r.get("costs_sum") not in (None, "") else sum(
-                    v for _, v in costs)
-                price, qty = to_grosze(r.get("price")), to_qty(r.get("pcs"))
-                total = to_grosze(r.get("sum")) if r.get("sum") not in (None, "") else round(price * qty)
                 hashtag = "" if str(r.get("hashtag") or "").strip() == "0" else str(r.get("hashtag") or "").strip()
                 c.execute(
                     "INSERT INTO fin_orders(id, hashtag, client_id, payer_id, day, title, status, principal, price, qty,"
                     " total, costs, costs_total, invoice_status, account_legacy, created_at, updated_at, deleted_at)"
                     " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (int(r["id"]), hashtag, int(r["client"]), int(r["invoice"] or r["client"]), day, r["title"],
+                    (int(r["id"]), hashtag, client, payer, day, r["title"],
                      r["status"], r["principal"], price, qty, total, json.dumps(costs, ensure_ascii=False),
                      costs_total, r["invoice_status"], users.get(str(r.get("account")), ""),
                      r.get("created_at") or ts, r.get("updated_at") or ts, r.get("deleted_at")))
@@ -184,9 +194,13 @@ def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool =
                 if not mv or "/" not in mv:
                     stats["pominiete"].append(f"koszt {r['id']}: brak miesiąca")
                     continue
-                m, y = mv.split("/")
-                c.execute("INSERT INTO fin_costs(month, name, value) VALUES (?,?,?)",
-                          (f"{int(y):04d}-{int(m):02d}", r["name"], to_grosze(r["value"])))
+                try:
+                    m, y = mv.split("/")
+                    month, value = f"{int(y):04d}-{int(m):02d}", to_grosze(r["value"])
+                except (ValueError, OverflowError) as e:
+                    stats["pominiete"].append(f"koszt {r['id']}: POMINIĘTY ({e})")
+                    continue
+                c.execute("INSERT INTO fin_costs(month, name, value) VALUES (?,?,?)", (month, r["name"], value))
                 stats["koszty"] += 1
             for r in data.get("settings", []):
                 if r["name"] in ("status", "invoice_status"):
@@ -194,6 +208,8 @@ def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool =
                         vals = json.loads(r["value"])
                     except ValueError:
                         continue
+                    vals = list(vals.values()) if isinstance(vals, dict) else list(vals)   # PHP array_filter → obiekt
+                    vals = [str(v).strip() for v in vals if str(v).strip()]
                     c.execute("INSERT INTO fin_settings(name, value) VALUES (?,?) ON CONFLICT(name) DO UPDATE SET "
                               "value=excluded.value", (r["name"], json.dumps(list(vals), ensure_ascii=False)))
             c.execute("COMMIT")
