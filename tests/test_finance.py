@@ -208,7 +208,7 @@ def test_legacy_import(fin):
     assert fin.clients(with_deleted=False)[0]["name"] == "PGNiG Obrót Detaliczny"   # Allianz usunięty
     assert fin.costs("2026-09")[0]["value"] == 250050
     assert fin.get_list("status") == ["Wycena", "Zakończone"]
-    assert check_totals(fin) == [("2026", 3, 310100)]
+    assert check_totals(fin) == [("2026", 3, 310100, 30000)]
     with pytest.raises(ImportErrorPL):
         import_legacy(fin, data)                                # drugi raz bez --zastap
     import_legacy(fin, data, replace=True)
@@ -235,3 +235,18 @@ def test_import_refuses_when_clients_exist(fin):
 def test_import_rejects_garbage(fin):
     with pytest.raises(ImportErrorPL):
         parse_dump("SELECT 1;")
+
+
+def test_import_fixes_old_php_truncation(tmp_path):
+    text = legacy_dump()
+    text = text.replace("'{\\\"druk\\\":\\\"300\\\"}','300'", "'{\\\"druk\\\":\\\"288,44\\\"}','288'")
+    text = text.replace("'Baner','Wycena','','4','100','1','100'", "'Baner','Wycena','','4','1 898','1','1'")
+    assert "288,44" in text and "1 898" in text
+    data = parse_dump(text)
+    fixed = Finance(DB(tmp_path / "a.db"))
+    st = import_legacy(fixed, data)
+    assert fixed.order(10)["costs_total"] == 28844 and fixed.order(11)["total"] == 189800
+    assert {(k, i) for k, i, _, _ in st["korekty"]} == {("koszty", "10"), ("wartosc", "11")}
+    old = Finance(DB(tmp_path / "b.db"))
+    import_legacy(old, data, fix=False)
+    assert old.order(10)["costs_total"] == 28800 and old.order(11)["total"] == 100

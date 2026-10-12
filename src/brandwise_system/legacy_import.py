@@ -136,14 +136,16 @@ def legacy_costs(raw) -> list[list]:
     return [[str(k), to_grosze(v)] for k, v in items]
 
 
-def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool = False) -> dict:
+def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool = False, fix: bool = True) -> dict:
+    """fix=True: poprawia błędy liczenia starego panelu (PHP ucinał kwoty z przecinkiem lub spacją:
+    koszt „288,44” liczył jako 288, cenę „1 898” jako 1, ilość „15,5” jako 15). fix=False: liczby jak w starym panelu."""
     db = finance.db
     if not replace and any(db.one(f"SELECT 1 FROM {t} LIMIT 1") for t in ("fin_orders", "fin_clients", "fin_costs")):
         raise ImportErrorPL("W nowym systemie są już zlecenia, klienci albo koszty. Użyj --zastap, żeby zastąpić je "
                             "danymi ze zrzutu.")
     users = {str(u["id"]): u.get("name") or u.get("email") or "" for u in data.get("users", [])}
     ts = now_iso()
-    stats = {"klienci": 0, "zlecenia": 0, "koszty": 0, "pominiete": []}
+    stats = {"klienci": 0, "zlecenia": 0, "koszty": 0, "pominiete": [], "korekty": []}
     with db.lock:
         c = db.conn
         c.execute("BEGIN")
@@ -168,12 +170,24 @@ def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool =
                 try:
                     day = legacy_day(r["data"])
                     costs = legacy_costs(r.get("costs_data"))
-                    costs_total = (to_grosze(r.get("costs_sum")) if r.get("costs_sum") not in (None, "")
-                                   else sum(v for _, v in costs))
-                    if costs and sum(v for _, v in costs) != costs_total:
-                        stats["pominiete"].append(f"zlecenie {r['id']}: suma kosztów różni się od listy – zostawiono sumę")
+                    listed = sum(v for _, v in costs)
+                    legacy_costs_total = to_grosze(r.get("costs_sum")) if r.get("costs_sum") not in (None, "") else listed
+                    costs_total = legacy_costs_total
+                    if costs and listed != legacy_costs_total:
+                        if fix:
+                            costs_total = listed
+                            stats["korekty"].append(("koszty", r["id"], legacy_costs_total, listed))
+                        else:
+                            stats["pominiete"].append(f"zlecenie {r['id']}: suma kosztów różni się od listy – zostawiono sumę")
                     price, qty = to_grosze(r.get("price")), to_qty(r.get("pcs"))
-                    total = to_grosze(r.get("sum")) if r.get("sum") not in (None, "") else line_total(price, qty)
+                    legacy_total = to_grosze(r.get("sum")) if r.get("sum") not in (None, "") else line_total(price, qty)
+                    total = legacy_total
+                    if abs(line_total(price, qty) - legacy_total) > 1:
+                        if fix:
+                            total = line_total(price, qty)
+                            stats["korekty"].append(("wartosc", r["id"], legacy_total, total))
+                        else:
+                            stats["pominiete"].append(f"zlecenie {r['id']}: wartość różni się od cena × ilość – zostawiono wartość")
                     client, payer = int(r["client"]), int(r["invoice"] or r["client"])
                 except (ValueError, OverflowError, TypeError) as e:
                     stats["pominiete"].append(f"zlecenie {r.get('id')}: POMINIĘTE ({e})")
@@ -216,12 +230,12 @@ def import_legacy(finance: Finance, data: dict[str, list[dict]], replace: bool =
         except Exception:
             c.execute("ROLLBACK")
             raise
-    db.log("legacy_import", None, json.dumps({k: v if k != "pominiete" else len(v) for k, v in stats.items()}))
+    db.log("legacy_import", None, json.dumps({k: v if not isinstance(v, list) else len(v) for k, v in stats.items()}))
     return stats
 
 
-def check_totals(finance: Finance) -> list[tuple[str, int, int]]:
-    """Kontrola po imporcie: rok, liczba zleceń, suma netto – do porównania ze starym panelem."""
-    return [(r["y"], r["n"], r["t"]) for r in finance.db.q(
-        "SELECT substr(day,1,4) y, COUNT(*) n, SUM(total) t FROM fin_orders WHERE deleted_at IS NULL "
+def check_totals(finance: Finance) -> list[tuple[str, int, int, int]]:
+    """Kontrola po imporcie: rok, liczba zleceń, sprzedaż netto, koszty zleceń – do porównania ze starym panelem."""
+    return [(r["y"], r["n"], r["t"], r["c"]) for r in finance.db.q(
+        "SELECT substr(day,1,4) y, COUNT(*) n, SUM(total) t, SUM(costs_total) c FROM fin_orders WHERE deleted_at IS NULL "
         "GROUP BY y ORDER BY y")]

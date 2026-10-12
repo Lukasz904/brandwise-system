@@ -123,3 +123,4 @@ tfoot td{border-top:1px solid var(--line);background:#fcfbfd}
   .stats.four{grid-template-columns:1fr 1fr}
   .costrow{grid-template-columns:1fr 110px}
 }
+td.hascost{color:var(--accent-d);font-weight:600}td.hascost small{font-weight:400}
