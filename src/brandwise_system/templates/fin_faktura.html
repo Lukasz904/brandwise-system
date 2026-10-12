@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Faktura ze zleceń{% endblock %}
+{% block content %}
+<header class="top"><h1>Faktura ze zleceń</h1><a href="{{ wroc }}">← lista</a></header>
+<form method="post" action="/zlecenia/faktura" class="card form" data-confirm="Wystawić fakturę w Fakturowni na {{ gross|zl }} brutto?">
+  <input type="hidden" name="wroc" value="{{ wroc }}">
+  {% for o in orders %}<input type="hidden" name="id" value="{{ o.id }}">{% endfor %}
+  <div class="grid">
+    <label class="wide">Nabywca w Fakturowni (płatnik: {{ payer.name }})
+      <select name="fk_client_id" required><option value="">— wybierz —</option>
+      {% for c in fk_clients %}<option value="{{ c.id }}" {{ 'selected' if c.id == chosen }}>{{ c.name }}{% if c.tax_no %} · NIP {{ c.tax_no }}{% endif %}</option>{% endfor %}
+      </select></label>
+    <label>Data wystawienia<input type="date" name="issue_date" value="{{ today }}" required></label>
+    <label>Data sprzedaży<input type="date" name="sell_date" value="{{ sell_date }}" required></label>
+    <label>Termin płatności (dni)<input type="number" name="days" min="0" max="365" value="{{ days }}" required></label>
+    <label class="check"><input type="checkbox" name="zapamietaj" value="1" {{ 'checked' if not remembered }}> zapamiętaj nabywcę i termin dla tego płatnika</label>
+  </div>
+  <h2>Pozycje</h2>
+  <table><thead><tr><th>Nazwa na fakturze</th><th class="num">Ilość</th><th class="num">Cena netto</th><th class="num">Wartość netto</th></tr></thead><tbody>
+  {% for o in orders %}<tr><td><input name="nazwa_{{ o.id }}" value="{{ o.title }}" maxlength="250"></td><td class="num">{{ o.qty|qty }}</td><td class="num">{{ o.price|zl }}</td><td class="num">{{ o.total|zl }}</td></tr>{% endfor %}
+  </tbody><tfoot>
+  <tr><td colspan="3">Netto</td><td class="num">{{ net|zl }}</td></tr>
+  <tr><td colspan="3">VAT {{ vat_rate }}%</td><td class="num">{{ vat|zl }}</td></tr>
+  <tr><td colspan="3"><b>Brutto</b></td><td class="num"><b>{{ gross|zl }}</b></td></tr>
+  </tfoot></table>
+  <p class="hint">Faktura powstanie w Fakturowni bez wysyłki do KSeF i bez maila do klienta – możesz ją tam jeszcze poprawić albo usunąć. Zlecenia dostaną status „Faktura”.</p>
+  <div class="actions"><button>Wystaw fakturę</button><a href="{{ wroc }}">Anuluj</a></div>
+</form>
+{% endblock %}

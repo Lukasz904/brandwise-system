@@ -12,6 +12,9 @@ host = "panel.brandwise.cloud"
 domain = "brandwise"               # brandwise.fakturownia.pl
 kinds = ["vat", "advance", "final"]  # faktury VAT, zaliczkowe, końcowe
 cache_seconds = 300
+ukryj = ["Internetica"]               # nabywcy pomijani w podsumowaniach faktur (spór sądowy)
+vat = 23                              # stawka VAT przy wystawianiu faktur ze zleceń
+termin_dni = 14                       # domyślny termin płatności, jeśli klient nie ma własnego
 
 [finanse]
 url = "https://panel.brandwise.pl/"  # obecny panel na mydevil – do czasu migracji

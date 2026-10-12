@@ -6,7 +6,7 @@
   <input type="hidden" name="wroc" value="{{ wroc }}">
   <div class="grid">
     <label>Data<input type="date" name="day" value="{{ o.day }}" required></label>
-    <label>Nr / hashtag<input name="hashtag" value="{{ o.hashtag or '' }}" placeholder="np. #16 albo nr zadania RedMine"></label>
+    <input type="hidden" name="hashtag" value="{{ o.hashtag or '' }}">
     <label class="wide">Tytuł<input name="title" value="{{ o.title or '' }}" required></label>
     <label>Klient<select name="client_id" required><option value="">—</option>{% for c in clients %}<option value="{{ c.id }}" {{ 'selected' if c.id == (o.client_id|int) }}>{{ c.name }}</option>{% endfor %}</select></label>
     <label>Płatnik (faktura na)<select name="payer_id"><option value="">jak klient</option>{% for c in clients %}<option value="{{ c.id }}" {{ 'selected' if c.id == (o.payer_id|int) and o.payer_id != o.client_id }}>{{ c.name }}</option>{% endfor %}</select></label>

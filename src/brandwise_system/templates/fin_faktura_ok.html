@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Faktura wystawiona{% endblock %}
+{% block content %}
+<div class="card"><h1>Gotowe</h1><p class="{{ 'err' if 'UWAGA' in msg else 'ok' }}">{{ msg }}</p>
+<div class="actions"><a class="btn" href="{{ url }}" target="_blank" rel="noopener">Otwórz w Fakturowni</a> <a href="{{ wroc }}">Wróć do zleceń</a></div></div>
+{% endblock %}

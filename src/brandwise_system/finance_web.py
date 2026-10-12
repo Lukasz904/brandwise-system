@@ -41,6 +41,12 @@ def this_month() -> str:
     return date.today().strftime("%Y-%m")
 
 
+def month_last_day(m: str) -> str:
+    from .finance import month_bounds
+    nxt = date.fromisoformat(month_bounds(m)[1])
+    return date.fromordinal(nxt.toordinal() - 1).isoformat()
+
+
 def month_or_now(m: str) -> str:
     return m if valid_month(m) else this_month()
 
@@ -81,11 +87,17 @@ def log(request: Request, event: str, detail: str = "") -> None:
 @router.get("/zlecenia", response_class=HTMLResponse)
 async def orders_list(request: Request):
     f = Filters.from_query(request.query_params)
-    if f.empty and "wszystkie" not in request.query_params:
-        f.day_from = f"{this_month()}-01"
+    preset = request.query_params.get("okres", "")
+    if preset in ("biezacy", "poprzedni"):
+        m = this_month() if preset == "biezacy" else prev_month(this_month())
+        f.day_from, f.day_to = f"{m}-01", month_last_day(m)
+    elif f.empty and "wszystkie" not in request.query_params:
+        m = this_month()
+        f.day_from, f.day_to = f"{m}-01", month_last_day(m)
+        preset = "biezacy"
     F = fin(request)
     limit = 2000
-    return page(request, "fin_zlecenia.html", f=f, orders=F.orders(f, limit), totals=F.totals(f), limit=limit,
+    return page(request, "fin_zlecenia.html", f=f, preset=preset, orders=F.orders(f, limit), totals=F.totals(f), limit=limit,
                 clients=filter_choices(F), statuses=F.get_list("status"), inv_statuses=F.get_list("invoice_status"),
                 query=urlencode(f.to_query(), doseq=True), msg=request.query_params.get("ok", ""))
 
@@ -108,7 +120,7 @@ async def order_new(request: Request):
     return order_form(request)
 
 
-@router.get("/zlecenia/{oid}", response_class=HTMLResponse)
+@router.get("/zlecenia/{oid:int}", response_class=HTMLResponse)
 async def order_edit(request: Request, oid: int):
     o = fin(request).order(oid)
     if o is None:
@@ -116,7 +128,7 @@ async def order_edit(request: Request, oid: int):
     return order_form(request, o)
 
 
-@router.get("/zlecenia/{oid}/duplikuj", response_class=HTMLResponse)
+@router.get("/zlecenia/{oid:int}/duplikuj", response_class=HTMLResponse)
 async def order_duplicate(request: Request, oid: int):
     o = fin(request).order(oid)
     if o is None:
@@ -160,14 +172,14 @@ async def orders_bulk(request: Request):
     return back(form.get("wroc") or "/zlecenia", f"zmieniono-{n}")
 
 
-@router.post("/zlecenia/{oid}")
+@router.post("/zlecenia/{oid:int}")
 async def order_update(request: Request, oid: int):
     if fin(request).order(oid) is None:
         raise HTTPException(404, "Nie ma takiego zlecenia.")
     return await _save(request, oid)
 
 
-@router.post("/zlecenia/{oid}/usun")
+@router.post("/zlecenia/{oid:int}/usun")
 async def order_delete(request: Request, oid: int):
     form = await request.form()
     fin(request).delete_order(oid)
@@ -215,8 +227,11 @@ async def costs(request: Request, m: str = ""):
     month = month_or_now(m)
     F = fin(request)
     rows = F.costs(month)
+    prev = prev_month(month)
+    have = {(r["name"].strip().lower(), r["value"]) for r in rows}
+    prev_rows = [{"r": r, "dup": (r["name"].strip().lower(), r["value"]) in have} for r in F.costs(prev)]
     return page(request, "fin_koszty.html", month=month, label=month_label(month), rows=rows,
-                total=sum(r["value"] for r in rows), months=F.cost_months(), prev=prev_month(month),
+                total=sum(r["value"] for r in rows), months=F.cost_months(), prev=prev, prev_rows=prev_rows,
                 msg=request.query_params.get("ok", ""))
 
 
@@ -236,7 +251,10 @@ async def cost_copy(request: Request):
     form = await request.form()
     if not (valid_month(form.get("src", "")) and valid_month(form.get("dst", ""))):
         raise HTTPException(400, "Niepoprawny miesiąc.")
-    n = fin(request).copy_costs(form.get("src", ""), form.get("dst", ""))
+    ids = [int(x) for x in form.getlist("id") if x.isdigit()]
+    if not ids:
+        return back(f"/koszty?m={form.get('dst')}", "nic-nie-zaznaczono")
+    n = fin(request).copy_costs(form.get("src", ""), form.get("dst", ""), ids)
     return back(f"/koszty?m={form.get('dst')}", f"skopiowano-{n}")
 
 
@@ -340,18 +358,17 @@ async def report_xlsx(request: Request, token: str):
     wb = Workbook()
     ws = wb.active
     ws.title = "Podsumowanie"
-    ws.append(["Data", "Nr", "Tytuł", "Zleceniodawca", "Status", "Cena netto", "Ilość", "Wartość netto"])
+    ws.append(["Data", "Tytuł", "Zleceniodawca", "Status", "Cena netto", "Ilość", "Wartość netto"])
     for c in ws[1]:
         c.font = Font(bold=True)
     for o in orders:
-        ws.append([o["day"], o["hashtag"], o["title"], o["principal"], o["status"],
-                   o["price"] / 100, o["qty"], o["total"] / 100])
+        ws.append([o["day"], o["title"], o["principal"], o["status"], o["price"] / 100, o["qty"], o["total"] / 100])
     ws.append([])
-    ws.append(["", "", "Razem", "", "", "", "", totals["total"] / 100])
-    ws[ws.max_row][7].font = Font(bold=True)
-    for col, w in zip("ABCDEFGH", (12, 12, 50, 24, 16, 14, 8, 16)):
+    ws.append(["", "Razem", "", "", "", "", totals["total"] / 100])
+    ws[ws.max_row][6].font = Font(bold=True)
+    for col, w in zip("ABCDEFG", (12, 50, 24, 16, 14, 8, 16)):
         ws.column_dimensions[col].width = w
-    for row in ws.iter_rows(min_row=2, min_col=6, max_col=8):
+    for row in ws.iter_rows(min_row=2, min_col=5, max_col=7):
         for c in row:
             if isinstance(c.value, (int, float)):
                 c.number_format = '# ##0.00'
@@ -362,3 +379,104 @@ async def report_xlsx(request: Request, token: str):
 
 
 __all__ = ["router", "zl"]
+
+
+# ---------- faktura ze zleceń (Fakturownia) ----------
+def _invoice_ids(params) -> list[int]:
+    return sorted({int(x) for x in params.getlist("id") if str(x).isdigit()})
+
+
+def _invoice_check(orders) -> str:
+    if not orders:
+        return "Zaznacz zlecenia do zafakturowania."
+    if len({o["payer_id"] for o in orders}) > 1:
+        return "Zaznaczone zlecenia mają różnych płatników – jedna faktura może iść tylko do jednego płatnika."
+    done = [o for o in orders if o["fk_invoice_id"] or o["invoice_status"] == "Faktura"]
+    if done:
+        return f"Część zleceń jest już zafakturowana ({', '.join(o['title'] for o in done[:3])}) – odznacz je."
+    return ""
+
+
+def _best_match(name: str, fk_clients: list[dict]) -> int | None:
+    n = name.lower().strip()
+    for c in fk_clients:
+        if c["name"].lower().strip() == n:
+            return c["id"]
+    for c in fk_clients:
+        if n and (n in c["name"].lower() or c["name"].lower() in n):
+            return c["id"]
+    return None
+
+
+@router.get("/zlecenia/faktura", response_class=HTMLResponse)
+async def invoice_preview(request: Request):
+    F, cfg = fin(request), request.app.state.cfg
+    orders = F.orders_by_ids(_invoice_ids(request.query_params))
+    error = _invoice_check(orders)
+    wroc = safe_path(request.query_params.get("wroc"))
+    if error:
+        return back(wroc + ("&" if "?" in wroc else "?") + urlencode({"blad": error}))
+    fk = request.app.state.fakturownia
+    try:
+        fk_clients = await fk.clients()
+    except Exception as e:  # noqa: BLE001
+        return back(wroc + ("&" if "?" in wroc else "?") + urlencode({"blad": f"Fakturownia: {e}"}))
+    payer = F.client(orders[0]["payer_id"])
+    chosen = payer["fk_client_id"] or _best_match(payer["name"], fk_clients)
+    net = sum(o["total"] for o in orders)
+    vat = round(net * cfg.vat_rate / 100)
+    return page(request, "fin_faktura.html", orders=orders, payer=payer, fk_clients=fk_clients, chosen=chosen,
+                today=date.today().isoformat(), sell_date=max(o["day"] for o in orders),
+                days=payer["payment_days"] or cfg.default_payment_days, vat_rate=cfg.vat_rate,
+                net=net, vat=vat, gross=net + vat, wroc=wroc, remembered=bool(payer["fk_client_id"]))
+
+
+@router.post("/zlecenia/faktura")
+async def invoice_issue(request: Request):
+    form = await request.form()
+    F, cfg = fin(request), request.app.state.cfg
+    wroc = safe_path(form.get("wroc"))
+    orders = F.orders_by_ids(_invoice_ids(form))            # kwoty zawsze z bazy, nie z formularza
+    error = _invoice_check(orders)
+    try:
+        fk_client_id = int(form.get("fk_client_id") or 0)
+        days = int(form.get("days") or cfg.default_payment_days)
+        issue = date.fromisoformat(form.get("issue_date", "")).isoformat()
+        sell = date.fromisoformat(form.get("sell_date", "")).isoformat()
+    except ValueError:
+        error = error or "Niepoprawna data, termin albo nabywca."
+    if not error and not fk_client_id:
+        error = "Wybierz nabywcę z listy klientów Fakturowni."
+    if error:
+        return back(wroc + ("&" if "?" in wroc else "?") + urlencode({"blad": error}))
+    positions = []
+    for o in orders:
+        name = (form.get(f"nazwa_{o['id']}") or o["title"]).strip()[:250]
+        positions.append({"name": name, "quantity": f"{o['qty']:g}", "price_net": f"{o['price'] / 100:.2f}",
+                          "tax": cfg.vat_rate})
+    invoice = {"kind": "vat", "issue_date": issue, "sell_date": sell, "payment_to_kind": days,
+               "client_id": fk_client_id, "positions": positions}
+    fk = request.app.state.fakturownia
+    try:
+        res = await fk.create_invoice(invoice)
+    except Exception as e:  # noqa: BLE001
+        log(request, "invoice_failed", str(e)[:300])
+        return back(wroc + ("&" if "?" in wroc else "?") + urlencode({"blad": str(e)[:400]}))
+    inv_id, number = int(res.get("id") or 0), str(res.get("number") or "")
+    F.mark_invoiced([o["id"] for o in orders], inv_id, number)
+    if form.get("zapamietaj"):
+        F.set_client_billing(orders[0]["payer_id"], fk_client_id, days)
+    expected = sum(o["total"] for o in orders)
+    got = to_grosze(res.get("price_net")) if res.get("price_net") not in (None, "") else expected
+    log(request, "invoice_issued", f"{number} id={inv_id} orders={','.join(str(o['id']) for o in orders)} net={got}")
+    msg = f"Wystawiono fakturę {number or inv_id} na {zl(got)} netto."
+    if got != expected:
+        msg += f" UWAGA: Fakturownia policzyła netto {zl(got)}, a zlecenia dają {zl(expected)} – sprawdź fakturę."
+    return RedirectResponse(f"/zlecenia/faktura/{inv_id}?" + urlencode({"msg": msg, "wroc": wroc}), status_code=303)
+
+
+@router.get("/zlecenia/faktura/{inv_id}", response_class=HTMLResponse)
+async def invoice_done(request: Request, inv_id: int):
+    fk = request.app.state.fakturownia
+    return page(request, "fin_faktura_ok.html", msg=request.query_params.get("msg", ""),
+                url=f"{fk.base}/invoices/{inv_id}", wroc=safe_path(request.query_params.get("wroc")))

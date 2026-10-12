@@ -209,10 +209,20 @@ class Filters:
 
 
 class Finance:
+    MIGRATIONS = {
+        "fin_clients": {"fk_client_id": "INTEGER", "payment_days": "INTEGER"},
+        "fin_orders": {"fk_invoice_id": "INTEGER", "fk_invoice_number": "TEXT"},
+    }
+
     def __init__(self, db):
         self.db = db
         with db.lock:
             db.conn.executescript(SCHEMA)
+            for table, cols in self.MIGRATIONS.items():
+                have = {r[1] for r in db.conn.execute(f"PRAGMA table_info({table})")}
+                for col, typ in cols.items():
+                    if col not in have:
+                        db.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
         if not self.db.one("SELECT 1 FROM fin_settings WHERE name='status'"):
             self.set_list("status", DEFAULT_STATUSES)
         if not self.db.one("SELECT 1 FROM fin_settings WHERE name='invoice_status'"):
@@ -318,6 +328,25 @@ class Finance:
                   f"({','.join('?' * len(ids))})", args + list(ids))
         return len(ids)
 
+    def orders_by_ids(self, ids: list[int]):
+        if not ids:
+            return []
+        return self.db.q(
+            "SELECT o.*, c.name AS client_name, p.name AS payer_name, p.fk_client_id AS payer_fk_id, "
+            "p.payment_days AS payer_payment_days FROM fin_orders o JOIN fin_clients c ON c.id=o.client_id "
+            f"JOIN fin_clients p ON p.id=o.payer_id WHERE o.deleted_at IS NULL AND o.id IN ({','.join('?' * len(ids))}) "
+            "ORDER BY o.day, o.id", list(ids))
+
+    def client(self, cid: int):
+        return self.db.one("SELECT * FROM fin_clients WHERE id=?", (cid,))
+
+    def set_client_billing(self, cid: int, fk_client_id: int | None, payment_days: int | None) -> None:
+        self.db.q("UPDATE fin_clients SET fk_client_id=?, payment_days=? WHERE id=?", (fk_client_id, payment_days, cid))
+
+    def mark_invoiced(self, ids: list[int], fk_invoice_id: int, number: str) -> None:
+        self.db.q(f"UPDATE fin_orders SET invoice_status=?, fk_invoice_id=?, fk_invoice_number=?, updated_at=? "
+                  f"WHERE id IN ({','.join('?' * len(ids))})", [INVOICED, fk_invoice_id, number, now_iso(), *ids])
+
     def delete_order(self, oid: int) -> None:
         self.db.q("UPDATE fin_orders SET deleted_at=? WHERE id=?", (now_iso(), oid))
 
@@ -340,9 +369,9 @@ class Finance:
     def delete_cost(self, cid: int) -> None:
         self.db.q("DELETE FROM fin_costs WHERE id=?", (cid,))
 
-    def copy_costs(self, src: str, dst: str) -> int:
+    def copy_costs(self, src: str, dst: str, ids: list[int] | None = None) -> int:
         datetime.strptime(dst, "%Y-%m")
-        rows = self.costs(src)
+        rows = [r for r in self.costs(src) if ids is None or r["id"] in ids]
         for r in rows:
             self.add_cost(dst, r["name"], r["value"])
         return len(rows)

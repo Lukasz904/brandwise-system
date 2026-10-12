@@ -31,6 +31,8 @@ templates.env.filters["zl"] = zl
 templates.env.filters["month_label"] = month_label
 templates.env.filters["zlint"] = lambda g: f"{round(g / 100):,}".replace(",", "\u00a0") if g else ""
 templates.env.filters["qty"] = lambda v: (f"{v:g}".replace(".", ",") if isinstance(v, (int, float)) else v)
+templates.env.filters["fin_choice"] = lambda c, sel: (c["id"], c["name"], c["id"] in sel)
+templates.env.filters["str_choice"] = lambda v, sel: (v, v, v in sel)
 templates.env.filters["fromjson"] = lambda v: __import__("json").loads(v or "[]")
 
 
@@ -74,7 +76,8 @@ def create_app(cfg: Config, fakturownia: Fakturownia | None = None, marek: Marek
     app.state.cfg = cfg
     app.state.db = DB(cfg.db_path)
     app.state.fakturownia = fakturownia or Fakturownia(cfg.fakturownia_domain, cfg.fakturownia_token,
-                                                       cfg.fakturownia_kinds, cfg.fakturownia_cache_seconds)
+                                                       cfg.fakturownia_kinds, cfg.fakturownia_cache_seconds,
+                                                       hidden_buyers=cfg.fakturownia_hidden)
     app.state.finance = Finance(app.state.db)
     app.state.modules = [marek or Marek(cfg.marek_summary_url, cfg.marek_host), app.state.fakturownia,
                          Finanse(app.state.finance)]

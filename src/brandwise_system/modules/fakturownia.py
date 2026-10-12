@@ -3,6 +3,9 @@
 API (dokumentacja: https://github.com/fakturownia/api):
 - lista: GET /invoices.json?api_token=…&period=all&kinds[]=…&page=N&per_page=100
 - zmiana statusu: POST /invoices/{id}/change_status.json?api_token=…&status=paid
+- klienci: GET /clients.json?api_token=…&page=N&per_page=100
+- nowa faktura: POST /invoices.json {"api_token": …, "invoice": {kind, issue_date, sell_date, payment_to, client_id,
+  positions: [{name, quantity, price_net, tax}]}} – wysyłka do KSeF jest wyłączona w ustawieniach konta
 Token wyłącznie z .env (FAKTUROWNIA_API_TOKEN). Lista jest buforowana (domyślnie 5 min).
 """
 
@@ -83,8 +86,9 @@ class Fakturownia(Module):
     timeout = 20.0
 
     def __init__(self, domain: str, token: str, kinds: list[str], cache_seconds: int = 300,
-                 transport: httpx.AsyncBaseTransport | None = None):
+                 transport: httpx.AsyncBaseTransport | None = None, hidden_buyers: list[str] | None = None):
         self.domain, self.token, self.kinds = domain, token, kinds
+        self.hidden_buyers = [h.lower() for h in (hidden_buyers or []) if h.strip()]
         self.cache_seconds = cache_seconds
         self.transport = transport
         self._cache: tuple[float, list[Invoice]] | None = None
@@ -126,6 +130,38 @@ class Fakturownia(Module):
             self._cache = (time.monotonic(), out)
             return out
 
+    def hidden(self, inv: Invoice) -> bool:
+        return any(h in inv.buyer.lower() for h in self.hidden_buyers)
+
+    async def clients(self) -> list[dict]:
+        if not self.configured:
+            raise FakturowniaError("brak konfiguracji")
+        out: list[dict] = []
+        async with self.client() as c:
+            for page in range(1, 51):
+                r = await c.get(f"{self.base}/clients.json",
+                                params={"api_token": self.token, "page": page, "per_page": 100})
+                r.raise_for_status()
+                batch = r.json()
+                out += [{"id": int(x["id"]), "name": x.get("name") or "", "tax_no": x.get("tax_no") or ""} for x in batch]
+                if len(batch) < 100:
+                    break
+        return sorted(out, key=lambda x: x["name"].lower())
+
+    async def create_invoice(self, invoice: dict) -> dict:
+        if not self.configured:
+            raise FakturowniaError("brak konfiguracji")
+        async with self.client() as c:
+            r = await c.post(f"{self.base}/invoices.json", json={"api_token": self.token, "invoice": invoice})
+        if r.status_code >= 400:
+            try:
+                detail = r.json()
+            except ValueError:
+                detail = r.text[:300]
+            raise FakturowniaError(f"Fakturownia odrzuciła fakturę (HTTP {r.status_code}): {detail}")
+        self._cache = None
+        return r.json()
+
     async def mark_paid(self, invoice_id: int) -> None:
         if not self.configured:
             raise FakturowniaError("brak konfiguracji")
@@ -137,9 +173,9 @@ class Fakturownia(Module):
         self._cache = None
 
     # ---------- obliczenia (czyste, testowalne) ----------
-    @staticmethod
-    def overview(invs: list[Invoice], today: date) -> dict:
-        unpaid = [i for i in invs if i.unpaid]
+    def overview(self, invs: list[Invoice], today: date) -> dict:
+        hidden = [i for i in invs if i.unpaid and self.hidden(i)]
+        unpaid = [i for i in invs if i.unpaid and not self.hidden(i)]
         overdue = sorted((i for i in unpaid if i.overdue_days(today) > 0), key=lambda i: i.due)
         upcoming = sorted((i for i in unpaid if i.due and i.due >= today), key=lambda i: i.due)
         no_due = [i for i in unpaid if i.due is None]
@@ -152,6 +188,9 @@ class Fakturownia(Module):
             "total_open": round(sum(i.open_amount for i in pln_only), 2),
             "total_overdue": round(sum(i.open_amount for i in overdue if i.currency == "PLN"), 2),
             "other_currency": sorted({i.currency for i in unpaid if i.currency != "PLN"}),
+            "total_upcoming": round(sum(i.open_amount for i in upcoming if i.currency == "PLN"), 2),
+            "hidden": hidden,
+            "total_hidden": round(sum(i.open_amount for i in hidden if i.currency == "PLN"), 2),
         }
 
     async def summary(self) -> Tile:

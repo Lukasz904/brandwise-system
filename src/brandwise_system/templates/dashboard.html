@@ -4,7 +4,7 @@
 <section class="tiles">
 {% for t in tiles %}
   <article class="tile{{ ' broken' if not t.ok }}">
-    <header><h2>{{ t.title }}</h2>{% if t.href %}<a href="{{ t.href }}">{{ t.href_label }} →</a>{% endif %}</header>
+    <header><h2>{{ t.title }}</h2>{% if t.href %}<a href="{{ t.href }}"{% if t.href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{{ t.href_label }} {{ '↗' if t.href.startswith('http') else '→' }}</a>{% endif %}</header>
     {% if not t.ok %}
       <p class="err">Brak danych: {{ t.error }}</p>
     {% else %}
@@ -13,7 +13,7 @@
       {% endfor %}</div>{% endif %}
       {% if t.rows_title and t.rows %}<h3>{{ t.rows_title }}</h3>{% endif %}
       {% if t.rows %}<ul class="rows">{% for r in t.rows %}
-        <li class="{{ r.tone }}">{% if r.href %}<a href="{{ r.href }}">{% endif %}<span class="l">{{ r.label }}{% if r.hint %}<small>{{ r.hint }}</small>{% endif %}</span><span class="v">{{ r.value }}</span>{% if r.href %}</a>{% endif %}</li>
+        <li class="{{ r.tone }}">{% if r.href %}<a href="{{ r.href }}"{% if r.href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{% endif %}<span class="l">{{ r.label }}{% if r.hint %}<small>{{ r.hint }}</small>{% endif %}</span><span class="v">{{ r.value }}</span>{% if r.href %}</a>{% endif %}</li>
       {% endfor %}</ul>{% elif t.rows_title %}<p class="hint">Nic do zrobienia.</p>{% endif %}
     {% endif %}
   </article>
