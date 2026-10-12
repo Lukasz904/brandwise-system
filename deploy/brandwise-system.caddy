@@ -1,5 +1,5 @@
 # System firmowy Brandwise (instalowany do /etc/caddy/sites/ przez deploy/install.sh)
-panel.brandwise.pl {
+system.brandwise.cloud {
 	request_body {
 		max_size 2MB
 	}
