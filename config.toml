@@ -23,6 +23,7 @@ url = "https://brandwise.pl/"
 [[links."Serwery"]]
 name = "Panel mydevil"
 url = "https://panel.mydevil.net/"
+note = "s36 – jedyny serwer dev; s23 – do wygaszenia jako dev"
 
 [[links."Narzędzia"]]
 name = "Fakturownia"
