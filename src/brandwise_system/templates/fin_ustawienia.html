@@ -10,4 +10,9 @@
   <p class="hint">„Brak” oznacza zlecenie do zafakturowania, „Faktura” – zafakturowane. Te dwie nazwy liczą się w podsumowaniach.</p>
   <div class="actions"><button>Zapisz</button></div>
 </form>
+<h2>Dziennik zdarzeń</h2>
+<table class="journal"><thead><tr><th>Kiedy</th><th>Zdarzenie</th><th>Szczegóły</th></tr></thead><tbody>
+{% for e in journal %}<tr class="{{ 'alert' if 'failed' in e.event }}"><td>{{ e.at[:16]|replace('T', ' ') }} UTC</td><td>{{ e.event }}</td><td>{{ e.detail }}</td></tr>
+{% else %}<tr><td colspan="3" class="hint">Pusto.</td></tr>{% endfor %}
+</tbody></table>
 {% endblock %}
