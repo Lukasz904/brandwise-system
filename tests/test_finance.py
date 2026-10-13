@@ -393,3 +393,24 @@ def test_prospect_import_preview_and_commit(make_client):
     assert rows["Chatbot"]["client_name"] == "Nowa Firma S.A."
     assert "Niepoprawny" in c.post("/prospekty/import", headers=H, data={"json": "{zle"}).text or \
         "JSON" in c.post("/prospekty/import", headers=H, data={"json": "{zle"}).text
+
+
+def test_invoice_without_id_is_not_marked(make_client):
+    import httpx
+
+    from brandwise_system.modules.fakturownia import Fakturownia
+
+    def h(req):
+        if req.method == "POST":
+            return httpx.Response(200, json={"code": "ok"})
+        return httpx.Response(200, json=[])
+    c, app = make_client(fk=Fakturownia("brandwise", "tok", ["vat"], transport=httpx.MockTransport(h)))
+    F = app.state.finance
+    a = F.add_client("Allianz")
+    o = F.save_order({"day": "2026-10-02", "title": "Kartka", "client_id": a, "payer_id": a, "price": 100,
+                      "qty": 1, "invoice_status": "Brak"})
+    login(c, app)
+    r = c.post("/zlecenia/faktura", headers=H, data={"id": [o], "fk_client_id": "7", "issue_date": "2026-10-12",
+                                                    "sell_date": "2026-10-05", "days": "14", "wroc": "/zlecenia"})
+    assert "blad=" in r.headers["location"] and F.order(o)["invoice_status"] == "Brak"
+    assert "invoice_failed" in c.get("/ustawienia").text

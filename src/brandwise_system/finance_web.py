@@ -375,7 +375,8 @@ async def summary(request: Request, m: str = ""):
 @router.get("/ustawienia", response_class=HTMLResponse)
 async def settings_page(request: Request):
     F = fin(request)
-    return page(request, "fin_ustawienia.html", statuses="\n".join(F.get_list("status")),
+    journal = request.app.state.db.q("SELECT * FROM audit ORDER BY id DESC LIMIT 40")
+    return page(request, "fin_ustawienia.html", journal=journal, statuses="\n".join(F.get_list("status")),
                 inv_statuses="\n".join(F.get_list("invoice_status")), msg=request.query_params.get("ok", ""))
 
 
@@ -550,7 +551,11 @@ async def invoice_issue(request: Request):
     except Exception as e:  # noqa: BLE001
         log(request, "invoice_failed", str(e)[:300])
         return back(wroc + ("&" if "?" in wroc else "?") + urlencode({"blad": str(e)[:400]}))
-    inv_id, number = int(res.get("id") or 0), str(res.get("number") or "")
+    inv_id, number = int(res.get("id") or 0) if isinstance(res, dict) else 0, str(res.get("number") or "") if isinstance(res, dict) else ""
+    if not inv_id:                                           # bez id nie oznaczamy zleceń jako zafakturowane
+        log(request, "invoice_failed", "brak id w odpowiedzi: " + json.dumps(res, ensure_ascii=False)[:300])
+        return back(wroc + ("&" if "?" in wroc else "?") + urlencode(
+            {"blad": "Fakturownia nie potwierdziła utworzenia faktury – sprawdź w Fakturowni, zanim spróbujesz ponownie."}))
     F.mark_invoiced([o["id"] for o in orders], inv_id, number)
     if form.get("zapamietaj"):
         F.set_client_billing(orders[0]["payer_id"], fk_client_id, days)
