@@ -480,6 +480,9 @@ def _invoice_check(orders) -> str:
         return "Prospektów nie fakturujemy – najpierw dodaj je do zleceń."
     if len({o["payer_id"] for o in orders}) > 1:
         return "Zaznaczone zlecenia mają różnych płatników – jedna faktura może iść tylko do jednego płatnika."
+    zero = [o for o in orders if o["total"] <= 0 or o["qty"] <= 0]
+    if zero:
+        return f"Zlecenie „{zero[0]['title']}” ma kwotę albo ilość 0 – popraw je albo odznacz."
     done = [o for o in orders if o["fk_invoice_id"] or o["invoice_status"] == "Faktura"]
     if done:
         return f"Część zleceń jest już zafakturowana ({', '.join(o['title'] for o in done[:3])}) – odznacz je."
@@ -541,7 +544,10 @@ async def invoice_issue(request: Request):
     positions = []
     for o in orders:
         name = (form.get(f"nazwa_{o['id']}") or o["title"]).strip()[:250]
-        positions.append({"name": name, "quantity": f"{o['qty']:g}", "price_net": f"{o['price'] / 100:.2f}",
+        # Fakturownia wymaga wartości brutto pozycji; liczymy ją z netto zlecenia (zaokrąglenie od połowy w górę)
+        gross = (o["total"] * (100 + cfg.vat_rate) + 50) // 100
+        positions.append({"name": name, "quantity": f"{o['qty']:.4f}".rstrip("0").rstrip("."),
+                          "price_net": f"{o['price'] / 100:.2f}", "total_price_gross": f"{gross / 100:.2f}",
                           "tax": cfg.vat_rate})
     invoice = {"kind": "vat", "issue_date": issue, "sell_date": sell, "payment_to_kind": days,
                "client_id": fk_client_id, "positions": positions}

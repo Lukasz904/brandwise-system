@@ -288,8 +288,9 @@ def test_invoice_from_orders(make_client):
     assert r.status_code == 303 and r.headers["location"].startswith("/zlecenia/faktura/555")
     inv = sent[0]["invoice"]
     assert inv["client_id"] == 77 and inv["payment_to_kind"] == 21 and inv["sell_date"] == "2026-10-05"
-    assert inv["positions"] == [{"name": "Kartka", "quantity": "1", "price_net": "1000.00", "tax": 23},
-                                {"name": "Baner 300x250", "quantity": "3", "price_net": "150.00", "tax": 23}]
+    assert inv["positions"] == [
+        {"name": "Kartka", "quantity": "1", "price_net": "1000.00", "total_price_gross": "1230.00", "tax": 23},
+        {"name": "Baner 300x250", "quantity": "3", "price_net": "150.00", "total_price_gross": "553.50", "tax": 23}]
     assert F.order(o1)["invoice_status"] == "Faktura" and F.order(o2)["fk_invoice_number"] == "FV 12/10/2026"
     assert F.client(a)["fk_client_id"] == 77 and F.client(a)["payment_days"] == 21
     # ponowne wystawienie tych samych zleceń – odmowa, bez drugiej faktury
