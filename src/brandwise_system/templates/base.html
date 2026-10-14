@@ -23,7 +23,6 @@
   <input type="checkbox" id="menu-t" class="menu-t" aria-label="Menu" data-menu>
   <label for="menu-t" class="burger" aria-hidden="true"><span></span></label>
   <div class="menu" id="menu">
-  <a href="/" class="{{ 'on' if request.url.path == '/' }}">Dashboard</a>
   {% set p = request.url.path %}
   <a href="/zlecenia" class="{{ 'on' if p.startswith('/zlecenia') }}">Zlecenia</a>
   <a href="/prospekty" class="{{ 'on' if p.startswith('/prospekty') }}">Prospekty</a>
@@ -34,9 +33,7 @@
   <a href="/raporty" class="{{ 'on' if p.startswith('/raporty') }}">Raporty</a>
   <a href="https://{{ request.app.state.cfg.marek_host }}/">Marek</a>
   <span class="sp"></span>
-  <a href="/ustawienia" class="{{ 'on' if p.startswith('/ustawienia') }}">Ustawienia</a>
-  <a href="/klucze" class="{{ 'on' if p.startswith('/klucze') }}">Klucze</a>
-  <form method="post" action="/wyloguj"><button class="link">Wyloguj</button></form>
+  <a href="/ustawienia" class="{{ 'on' if p.startswith('/ustawienia') or p.startswith('/klucze') }}">Ustawienia</a>
   </div>
 </nav>
 {% endif %}

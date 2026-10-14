@@ -1,0 +1,6 @@
+<header class="top"><h1>Ustawienia</h1>
+<form method="post" action="/wyloguj"><button class="ghost small">Wyloguj</button></form></header>
+<div class="presets">
+  <a href="/ustawienia" class="{{ 'on' if request.url.path == '/ustawienia' }}">Statusy i dziennik</a>
+  <a href="/klucze" class="{{ 'on' if request.url.path.startswith('/klucze') }}">Klucze i dostęp</a>
+</div>
