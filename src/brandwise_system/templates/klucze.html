@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block title %}Klucze dostępu{% endblock %}
 {% block content %}
-<header class="top"><h1>Klucze dostępu</h1></header>
+{% include "_ustawienia_tabs.html" %}
+<h2>Klucze dostępu (passkeys)</h2>
 <table><thead><tr><th>Nazwa</th><th>Utworzony</th><th>Ostatnio użyty</th><th></th></tr></thead><tbody>
 {% for c in creds %}
 <tr><td>{{ c.label }}</td><td>{{ c.created_at[:10] }}</td><td>{{ (c.last_used_at or '—')[:10] }}</td>

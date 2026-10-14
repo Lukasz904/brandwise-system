@@ -60,39 +60,49 @@ function build(d, err) {
   w.backgroundColor = Color.dynamic(C.bg, C.bgDark);
   w.url = BASE + "/";
   w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
+  w.setPadding(12, 14, 12, 14);
   const ink = Color.dynamic(C.ink, C.inkDark);
-  const family = config.widgetFamily || "medium";
-  const size = family === "small" ? 13 : 14;
+  const small = (config.widgetFamily || "medium") === "small";
+  const size = small ? 12 : 13;
 
-  const title = w.addText("brandwise" + (d ? " · " + d.miesiac : ""));
-  title.font = Font.boldSystemFont(size - 1);
+  // nagłówek: miesiąc + godzina odświeżenia w jednym wierszu (oszczędza miejsce)
+  const head = w.addStack();
+  head.centerAlignContent();
+  const title = head.addText(small ? "brandwise" : "brandwise" + (d ? " · " + d.miesiac : ""));
+  title.font = Font.boldSystemFont(size);
   title.textColor = Color.dynamic(C.head, C.inkDark);
-  w.addSpacer(6);
+  title.lineLimit = 1;
+  head.addSpacer();
+  const t = head.addDate(new Date());
+  t.applyTimeStyle();
+  t.font = Font.systemFont(10);
+  t.textColor = C.mute;
+  w.addSpacer(8);
 
   if (err) {
     const e = w.addText(err);
     e.font = Font.systemFont(12);
     e.textColor = C.accent;
+    w.addSpacer();
     return w;
   }
   const f = d.faktury;
-  if (f) line(w, "Po terminie", zl(f.po_terminie) + (f.po_terminie_n ? ` (${f.po_terminie_n})` : ""),
-              f.po_terminie_n ? C.accent : C.ok, size);
-  line(w, "Do zafakturowania", zl(d.do_zafakturowania), d.do_zafakturowania_n ? C.accent : ink, size);
-  if (family !== "small") {
-    if (f) line(w, "Nieopłacone", zl(f.nieoplacone), ink, size);
-    line(w, "Przychód (mies.)", zl(d.przychod), ink, size);
-  }
-  line(w, "Prospekty", zl(d.prospekty) + (family !== "small" ? ` (${d.prospekty_n})` : ""), ink, size);
-  if (d.marek && family !== "small") {
-    line(w, "Marek czeka na Ciebie", d.marek.stop ? "STOP" : String(d.marek.czeka),
+  line(w, small ? "Dochód" : "Dochód po kosztach stałych", zl(d.dochod), d.dochod < 0 ? C.accent : C.ok, size);
+  w.addSpacer(3);
+  line(w, "Po terminie", f ? zl(f.po_terminie) + ` (${f.po_terminie_n})` : "—",
+       f && f.po_terminie_n ? C.accent : ink, size);
+  w.addSpacer(3);
+  line(w, "Nieopłacone", f ? zl(f.nieoplacone) : "—", ink, size);
+  w.addSpacer(3);
+  line(w, "Prospekty", zl(d.prospekty) + (small ? "" : ` (${d.prospekty_n})`), ink, size);
+  w.addSpacer(3);
+  if (d.marek) {
+    line(w, small ? "Marek czeka" : "Marek czeka na Ciebie", d.marek.stop ? "STOP" : String(d.marek.czeka),
          d.marek.stop || d.marek.czeka ? C.accent : ink, size);
+  } else {
+    line(w, small ? "Marek czeka" : "Marek czeka na Ciebie", "—", C.mute, size);
   }
   w.addSpacer();
-  const t = w.addDate(new Date());
-  t.applyTimeStyle();
-  t.font = Font.systemFont(10);
-  t.textColor = C.mute;
   return w;
 }
 

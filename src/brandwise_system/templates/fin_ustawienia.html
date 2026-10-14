@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Ustawienia{% endblock %}
 {% block content %}
-<header class="top"><h1>Ustawienia</h1></header>
+{% include "_ustawienia_tabs.html" %}
 {% if msg %}<p class="ok">Zapisano.</p>{% endif %}
 <form method="post" action="/ustawienia" class="card form">
   <div class="grid">

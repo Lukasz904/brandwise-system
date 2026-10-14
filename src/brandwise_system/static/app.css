@@ -198,3 +198,4 @@ small.note{color:var(--ink);opacity:.75;margin-top:2px}
 code.token{word-break:break-all;font-size:15px;display:block;padding:10px;user-select:all}
 
 .perm{margin:0;padding-left:20px}.consent{display:flex;gap:10px}
+.addkey button{white-space:nowrap}
